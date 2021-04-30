@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module Main (main) where
 
 import Control.Concurrent.MVar
@@ -21,7 +20,6 @@ import GHC.Driver.Flags
 import GHC.Driver.Main
 import GHC.Driver.Monad
 import GHC.Driver.Session
-import GHC.Driver.Types
 import GHC.Hs
 import GHC.LanguageExtensions
 import GHC.Parser.Lexer
@@ -107,9 +105,9 @@ data Processed a = Processed Bool a
 
 data WorkerData = WorkerData
   { wdConfig :: Config
-  , wdTags   :: (MVar TagMap)
-  , wdTimes  :: (MVar ModTimes)
-  , wdQueue  :: (TBQueue (Maybe (FilePath, UTCTime)))
+  , wdTags   :: MVar TagMap
+  , wdTimes  :: MVar ModTimes
+  , wdQueue  :: TBQueue (Maybe (FilePath, UTCTime))
   }
 
 worker :: WorkerData -> IO ()
@@ -121,7 +119,7 @@ worker WorkerData{..} = runGhc $ do
     Nothing -> pure ()
     Just (file, mtime) -> do
       --putStrLn $ "Processing " ++ file
-      preprocessModule env file >>= \case
+      DP.preprocess env file Nothing Nothing >>= \case
         Left errs -> report gflags errs
         Right (flags, newFile) -> do
           buffer <- hGetStringBuffer newFile
@@ -340,13 +338,8 @@ writeTags tagsFile tags = withFile tagsFile WriteMode $ \h ->
 runGhc :: Ghc a -> IO a
 runGhc m = do
   env <- liftIO $ do
-#if __GLASGOW_HASKELL__ >= 808
     mySettings <- initSysTools libdir
     myLlvmConfig <- lazyInitLlvmConfig libdir
-#else
-    mySettings <- initSysTools (Just libdir)
-    myLlvmConfig <- initLlvmConfig (Just libdir)
-#endif
     dflags <- threadSafeInitDynFlags (defaultDynFlags mySettings myLlvmConfig)
     newHscEnv dflags
   ref <- newIORef env
@@ -376,17 +369,6 @@ runGhc m = do
         , rtldInfo       = refRtldInfo
         , rtccInfo       = refRtccInfo
         }
-
-preprocessModule
-  :: HscEnv
-  -> FilePath
-  -> IO (Either ErrorMessages (DynFlags, FilePath))
-preprocessModule env file =
-#if __GLASGOW_HASKELL__ >= 808
-  DP.preprocess env file Nothing Nothing
-#else
-  Right <$> DP.preprocess env (file, Nothing)
-#endif
 
 parseModule
   :: FilePath

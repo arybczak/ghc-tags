@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module GhcTags.Tag
   ( -- * Tag
     TAG_KIND (..)
@@ -38,42 +37,20 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 -- GHC imports
-#if   __GLASGOW_HASKELL__ >= 900
 import           GHC.Driver.Session (DynFlags)
-#else
-import           DynFlags           (DynFlags (pprUserLength))
-#endif
-#if   __GLASGOW_HASKELL__ >= 900
 import           GHC.Data.FastString (bytesFS)
-#elif __GLASGOW_HASKELL__ >= 810
-import           FastString          (bytesFS)
-#else
-import           FastString          (FastString (fs_bs))
-#endif
 
-#if   __GLASGOW_HASKELL__ >= 900
 import           GHC.Types.SrcLoc
                               ( SrcSpan (..)
                               , srcSpanFile
                               , srcSpanStartLine
                               , srcSpanStartCol
                               )
-#else
-import           SrcLoc       ( SrcSpan (..)
-                              , srcSpanFile
-                              , srcSpanStartLine
-                              , srcSpanStartCol
-                              )
-#endif
 
 import           GhcTags.Ghc  ( GhcTag (..)
                               , GhcTagKind (..)
                               )
-#if   __GLASGOW_HASKELL__ >= 900
 import qualified GHC.Utils.Outputable as Out
-#else
-import qualified Outputable as Out
-#endif
 
 --
 -- Tag
@@ -271,14 +248,14 @@ type ETagFields = TagFields 'ETAG
 data Tag (tk :: TAG_KIND) = Tag
   { tagName       :: TagName
     -- ^ name of the tag
-  , tagKind       :: (TagKind tk)
+  , tagKind       :: TagKind tk
     -- ^ ctags specifc field, which classifies tags
-  , tagAddr       :: (TagAddress tk)
+  , tagAddr       :: TagAddress tk
     -- ^ address in source file
-  , tagDefinition :: (TagDefinition tk)
+  , tagDefinition :: TagDefinition tk
     -- ^ etags specific field; only tags read from emacs tags file contain this
     -- field.
-  , tagFields     :: (TagFields tk)
+  , tagFields     :: TagFields tk
     -- ^ ctags specific field
   }
   deriving (Show, Eq)
@@ -472,18 +449,9 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         Text.intercalate " " -- remove all line breaks, tabs and multiple spaces
       . Text.words
       . Text.pack
-#if   __GLASGOW_HASKELL__ >= 900
       $ Out.renderWithStyle
           (Out.initSDocContext
             dynFlags
             (Out.setStyleColoured False
               $ Out.mkErrStyle Out.neverQualify))
           (Out.ppr hsType)
-
-#else
-      $ Out.renderWithStyle
-          (dynFlags { pprUserLength = 1 })
-          (Out.ppr hsType)
-          (Out.setStyleColoured False
-            $ Out.mkErrStyle dynFlags Out.neverQualify)
-#endif

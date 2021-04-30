@@ -26,8 +26,6 @@ executable ghc-tags
 
     main-is:             Main.hs
 
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
     other-modules:       GhcTags
                          GhcTags.Ghc
                          GhcTags.Tag
@@ -41,8 +39,12 @@ executable ghc-tags
                          GhcTags.ETag.Formatter
                          GhcTags.Utils
 
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
+    if impl(ghc == 9.0.*)
+       build-depends: ghc
+                    , ghc-boot
+    else
+       build-depends: ghc-lib == 9.0.*
+
     build-depends:       base <5
                        , attoparsec
                        , bytestring
@@ -50,8 +52,6 @@ executable ghc-tags
                        , deepseq
                        , directory
                        , filepath
-                       , ghc
-                       , ghc-boot
                        , ghc-paths
                        , stm
                        , text
