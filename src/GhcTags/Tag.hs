@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module GhcTags.Tag
   ( -- * Tag
     TAG_KIND (..)
@@ -37,19 +38,42 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 -- GHC imports
-import           DynFlags     ( DynFlags (pprUserLength) )
-import           FastString   ( FastString (..) )
+#if   __GLASGOW_HASKELL__ >= 900
+import           GHC.Driver.Session (DynFlags)
+#else
+import           DynFlags           (DynFlags (pprUserLength))
+#endif
+#if   __GLASGOW_HASKELL__ >= 900
+import           GHC.Data.FastString (bytesFS)
+#elif __GLASGOW_HASKELL__ >= 810
+import           FastString          (bytesFS)
+#else
+import           FastString          (FastString (fs_bs))
+#endif
 
+#if   __GLASGOW_HASKELL__ >= 900
+import           GHC.Types.SrcLoc
+                              ( SrcSpan (..)
+                              , srcSpanFile
+                              , srcSpanStartLine
+                              , srcSpanStartCol
+                              )
+#else
 import           SrcLoc       ( SrcSpan (..)
                               , srcSpanFile
                               , srcSpanStartLine
                               , srcSpanStartCol
                               )
+#endif
 
 import           GhcTags.Ghc  ( GhcTag (..)
                               , GhcTagKind (..)
                               )
+#if   __GLASGOW_HASKELL__ >= 900
+import qualified GHC.Utils.Outputable as Out
+#else
 import qualified Outputable as Out
+#endif
 
 --
 -- Tag
@@ -322,7 +346,7 @@ ghcTagToTag :: SingTagKind tk -> DynFlags -> GhcTag -> Maybe (TagFileName, Tag t
 ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI } =
     case gtSrcSpan of
       UnhelpfulSpan {} -> Nothing
-      RealSrcSpan realSrcSpan ->
+      RealSrcSpan realSrcSpan _ ->
         Just . (fileName realSrcSpan, ) $ Tag
           { tagName       = TagName tagName 
 
@@ -340,31 +364,32 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
           }
 
   where
-    fileName = TagFileName . Text.decodeUtf8 . fs_bs . srcSpanFile
+    fileName = TagFileName . Text.decodeUtf8 . bytesFS . srcSpanFile
 
-    tagName = Text.decodeUtf8 $ fs_bs gtTag
+    tagName = Text.decodeUtf8 gtTag
 
     fromGhcTagKind :: GhcTagKind -> TagKind tk
     fromGhcTagKind = \case
-      GtkModule                 -> TkModule
-      GtkTerm                   -> TkTerm
-      GtkFunction               -> TkFunction
-      GtkTypeConstructor {}     -> TkTypeConstructor
-      GtkDataConstructor {}     -> TkDataConstructor
-      GtkGADTConstructor {}     -> TkGADTConstructor
-      GtkRecordField            -> TkRecordField
-      GtkTypeSynonym {}         -> TkTypeSynonym
-      GtkTypeSignature {}       -> TkTypeSignature
-      GtkPatternSynonym         -> TkPatternSynonym
-      GtkTypeClass              -> TkTypeClass
-      GtkTypeClassMember        -> TkTypeClassMember
-      GtkTypeClassInstance {}   -> TkTypeClassInstance
-      GtkTypeFamily {}          -> TkTypeFamily
-      GtkTypeFamilyInstance     -> TkTypeFamilyInstance
-      GtkDataTypeFamily {}      -> TkDataTypeFamily
-      GtkDataTypeFamilyInstance -> TkDataTypeFamilyInstance
-      GtkForeignImport          -> TkForeignImport
-      GtkForeignExport          -> TkForeignExport
+      --GtkModule                    -> TkModule
+      GtkTerm                      -> TkTerm
+      GtkFunction                  -> TkFunction
+      GtkTypeConstructor {}        -> TkTypeConstructor
+      GtkDataConstructor {}        -> TkDataConstructor
+      GtkGADTConstructor {}        -> TkGADTConstructor
+      GtkRecordField               -> TkRecordField
+      GtkTypeSynonym {}            -> TkTypeSynonym
+      GtkTypeSignature {}          -> TkTypeSignature
+      GtkTypeKindSignature {}      -> TkTypeSignature
+      GtkPatternSynonym            -> TkPatternSynonym
+      GtkTypeClass                 -> TkTypeClass
+      GtkTypeClassMember {}        -> TkTypeClassMember
+      GtkTypeClassInstance {}      -> TkTypeClassInstance
+      GtkTypeFamily {}             -> TkTypeFamily
+      GtkTypeFamilyInstance {}     -> TkTypeFamilyInstance
+      GtkDataTypeFamily {}         -> TkDataTypeFamily
+      GtkDataTypeFamilyInstance {} -> TkDataTypeFamilyInstance
+      GtkForeignImport             -> TkForeignImport
+      GtkForeignExport             -> TkForeignExport
 
     -- static field (wheather term is exported or not)
     staticField :: SingTagKind tk -> TagFields tk
@@ -384,7 +409,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         TagFields $
           case gtFFI of
             Nothing  -> mempty
-            Just ffi -> [TagField "ffi" ffi]
+            Just ffi -> [TagField "ffi" $ Text.pack ffi]
 
 
     -- 'TagFields' from 'GhcTagKind'
@@ -411,11 +436,11 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
           GtkTypeConstructor (Just hsKind) ->
             mkField kindFieldName hsKind
 
-          GtkDataConstructor ty fields ->
+          GtkDataConstructor decl ->
             TagFields
               [TagField
-                { fieldName  = typeFieldName
-                , fieldValue = Text.intercalate " -> " (map render fields ++ [render ty])
+                { fieldName  = termFieldName
+                , fieldValue = render decl
                 }]
 
 
@@ -425,9 +450,10 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
           _ -> mempty
 
 
-    kindFieldName, typeFieldName :: Text
+    kindFieldName, typeFieldName, termFieldName :: Text
     kindFieldName = "Kind" -- "kind" is reserverd
     typeFieldName = "type"
+    termFieldName = "term"
 
     --
     -- fields
@@ -446,8 +472,18 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         Text.intercalate " " -- remove all line breaks, tabs and multiple spaces
       . Text.words
       . Text.pack
+#if   __GLASGOW_HASKELL__ >= 900
+      $ Out.renderWithStyle
+          (Out.initSDocContext
+            dynFlags
+            (Out.setStyleColoured False
+              $ Out.mkErrStyle Out.neverQualify))
+          (Out.ppr hsType)
+
+#else
       $ Out.renderWithStyle
           (dynFlags { pprUserLength = 1 })
           (Out.ppr hsType)
           (Out.setStyleColoured False
             $ Out.mkErrStyle dynFlags Out.neverQualify)
+#endif

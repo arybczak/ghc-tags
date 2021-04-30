@@ -14,14 +14,33 @@ import Data.Maybe (mapMaybe)
 import Data.Time
 import Data.Time.Format.ISO8601
 import GHC.Conc (getNumCapabilities)
+import GHC.Data.Bag
+import GHC.Data.FastString
+import GHC.Data.StringBuffer
+import GHC.Driver.Flags
+import GHC.Driver.Main
+import GHC.Driver.Monad
+import GHC.Driver.Session
+import GHC.Driver.Types
+import GHC.Hs
 import GHC.LanguageExtensions
+import GHC.Parser.Lexer
 import GHC.Paths
+import GHC.Platform
+import GHC.SysTools
+import GHC.Types.SrcLoc
+import GHC.Unit.Module.Env
+import GHC.Utils.Error
+import GHC.Utils.Outputable
 import System.Directory
 import System.Environment
 import System.FilePath
 import System.IO
 import System.IO.Error
 import qualified Control.Concurrent.Thread.Group as TG
+import qualified GHC
+import qualified GHC.Driver.Pipeline as DP
+import qualified GHC.Parser as Parser
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Builder as BS
 import qualified Data.Map.Strict as Map
@@ -30,20 +49,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
-
-import Bag
-import ErrUtils
-import GhcMonad
-import GhcPlugins
-import HsSyn
-import HscMain
-import Lexer
-import Platform
-import StringBuffer
-import SysTools
-import qualified DriverPipeline as DP
-import qualified GHC
-import qualified Parser
 
 import GhcTags
 --import qualified GhcTags.CTag as CTag
@@ -121,8 +126,10 @@ worker WorkerData{..} = runGhc $ do
         Right (flags, newFile) -> do
           buffer <- hGetStringBuffer newFile
           case parseModule file flags buffer of
-            PFailed _ loc err -> do
-              report flags $ unitBag $ mkPlainErrMsg flags loc err
+            PFailed pstate -> do
+              let (wrns, errs) = getMessages pstate flags
+              report flags wrns
+              report flags errs
             POk pstate hsModule -> do
               let (wrns, errs) = getMessages pstate flags
               report flags wrns
@@ -252,7 +259,7 @@ readTags tagsFile = doesFileExist tagsFile >>= \case
         putStrLn $ "Error while parsing " ++ tagsFile ++ ": " ++ show err
         pure Map.empty
 
-updateTagsWith :: DynFlags -> Located (HsModule GhcPs) -> TagMap -> TagMap
+updateTagsWith :: DynFlags -> Located HsModule -> TagMap -> TagMap
 updateTagsWith dflags hsModule acc = fileTags `Map.union` acc
   where
     fileTags =
@@ -335,7 +342,7 @@ runGhc m = do
   env <- liftIO $ do
 #if __GLASGOW_HASKELL__ >= 808
     mySettings <- initSysTools libdir
-    myLlvmConfig <- initLlvmConfig libdir
+    myLlvmConfig <- lazyInitLlvmConfig libdir
 #else
     mySettings <- initSysTools (Just libdir)
     myLlvmConfig <- initLlvmConfig (Just libdir)
@@ -385,7 +392,7 @@ parseModule
   :: FilePath
   -> DynFlags
   -> StringBuffer
-  -> ParseResult (Located (HsModule GhcPs))
+  -> ParseResult (Located HsModule)
 parseModule filename flags buffer =
   unP Parser.parseModule parseState
   where
