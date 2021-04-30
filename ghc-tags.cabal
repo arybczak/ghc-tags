@@ -1,7 +1,7 @@
 cabal-version:       2.4
 name:                ghc-tags
 version:             0.1
-synopsis:            Utility for generating a list of tags for a project
+synopsis:            Utility for generating a list of tags
 description:         Utility for generating a list of tags for a project
 license:             MPL-2.0
 license-file:        LICENSE
@@ -21,13 +21,11 @@ source-repository head
 
 common build-stanza
   ghc-options:         -Wall
-  ghc-prof-options:    -fprof-auto
 
   if impl(ghc == 9.0.*)
-     build-depends: ghc
-                  , ghc-boot
+     build-depends:    ghc, ghc-boot
   else
-     build-depends: ghc-lib == 9.0.*
+     build-depends:    ghc-lib == 9.0.*
 
   build-depends:       base <5
                      , attoparsec
@@ -81,9 +79,9 @@ library
 executable ghc-tags
     import: build-stanza
 
-    ghc-options: -threaded -rtsopts
+    ghc-options:       -threaded -rtsopts
 
-    build-depends: ghc-tags
+    build-depends:     ghc-tags
 
-    hs-source-dirs:      exe
-    main-is:             Main.hs
+    hs-source-dirs:    exe
+    main-is:           Main.hs
