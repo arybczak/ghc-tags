@@ -128,7 +128,7 @@ data TagKind (tk :: TAG_KIND) where
     TkDataTypeFamilyInstance :: TagKind tk
     TkForeignImport          :: TagKind tk
     TkForeignExport          :: TagKind tk
-    CharKind                 :: !Char -> TagKind tk
+    CharKind                 :: Char -> TagKind tk
     NoKind                   :: TagKind tk
 
 instance NFData (TagKind tk) where
@@ -155,17 +155,17 @@ data TagAddress (tk :: TAG_KIND) where
       -- The two arguments are line number and either column number or offset
       -- from the begining of the file.
       --
-      TagLineCol :: !Int -> !Int -> TagAddress tk
+      TagLineCol :: Int -> Int -> TagAddress tk
 
       -- | ctags can only use range ex-commands as an address (or a sequence of
       -- them separated by `;`). We parse line number specifically, since they
       -- are useful for ordering tags.
       --
-      TagLine :: !Int -> TagAddress 'CTAG
+      TagLine :: Int -> TagAddress 'CTAG
 
       -- | A tag address can be just an ex command.
       --
-      TagCommand :: !ExCommand -> TagAddress 'CTAG
+      TagCommand :: ExCommand -> TagAddress 'CTAG
 
 instance NFData (TagAddress tk) where
   rnf x = x `seq` ()
@@ -187,7 +187,7 @@ deriving instance Show (TagAddress tk)
 -- | Emacs tags specific field.
 --
 data TagDefinition (tk :: TAG_KIND) where
-      TagDefinition   :: !Text -> TagDefinition 'ETAG
+      TagDefinition   :: Text -> TagDefinition 'ETAG
       NoTagDefinition :: TagDefinition tk
 
 instance NFData (TagDefinition tk) where
@@ -200,8 +200,8 @@ deriving instance Eq   (TagDefinition tk)
 -- `kind:` tags but it can display any other tags too.
 --
 data TagField = TagField {
-      fieldName  :: !Text,
-      fieldValue :: !Text
+      fieldName  :: Text,
+      fieldValue :: Text
     }
   deriving (Eq, Ord, Show)
 
@@ -220,7 +220,7 @@ fileField = TagField { fieldName = "file", fieldValue = "" }
 data TagFields (tk :: TAG_KIND) where
     NoTagFields :: TagFields 'ETAG
 
-    TagFields   :: ![TagField]
+    TagFields   :: [TagField]
                 -> TagFields 'CTAG
 
 instance NFData (TagFields tk) where
@@ -245,16 +245,16 @@ type ETagFields = TagFields 'ETAG
 -- information parsed from a tags file or from *GHC* ast.
 --
 data Tag (tk :: TAG_KIND) = Tag
-  { tagName       :: !TagName
+  { tagName       :: TagName
     -- ^ name of the tag
-  , tagKind       :: !(TagKind tk)
+  , tagKind       :: (TagKind tk)
     -- ^ ctags specifc field, which classifies tags
-  , tagAddr       :: !(TagAddress tk)
+  , tagAddr       :: (TagAddress tk)
     -- ^ address in source file
-  , tagDefinition :: !(TagDefinition tk)
+  , tagDefinition :: (TagDefinition tk)
     -- ^ etags specific field; only tags read from emacs tags file contain this
     -- field.
-  , tagFields     :: !(TagFields tk)
+  , tagFields     :: (TagFields tk)
     -- ^ ctags specific field
   }
   deriving (Show, Eq)

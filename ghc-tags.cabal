@@ -75,5 +75,6 @@ executable ghc-tags
                        , OverloadedStrings
                        , RecordWildCards
                        , ScopedTypeVariables
+                       , StrictData
                        , StandaloneDeriving
                        , TupleSections

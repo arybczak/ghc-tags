@@ -50,10 +50,10 @@ import GhcTags
 import qualified GhcTags.ETag as ETag
 
 data Config = Config
-  { configLanguage    :: !Language
-  , configExtensions  :: ![Extension]
-  , configCppIncludes :: ![FilePath]
-  , configExcludeDirs :: ![FilePath]
+  { configLanguage    :: Language
+  , configExtensions  :: [Extension]
+  , configCppIncludes :: [FilePath]
+  , configExcludeDirs :: [FilePath]
   }
 
 applyConfig :: Config -> DynFlags -> DynFlags
@@ -98,13 +98,13 @@ ghcConfig = Config
 
 ----------------------------------------
 
-data Processed a = Processed !Bool !a
+data Processed a = Processed Bool a
 
 data WorkerData = WorkerData
-  { wdConfig :: !Config
-  , wdTags   :: !(MVar TagMap)
-  , wdTimes  :: !(MVar ModTimes)
-  , wdQueue  :: !(TBQueue (Maybe (FilePath, UTCTime)))
+  { wdConfig :: Config
+  , wdTags   :: (MVar TagMap)
+  , wdTimes  :: (MVar ModTimes)
+  , wdQueue  :: (TBQueue (Maybe (FilePath, UTCTime)))
   }
 
 worker :: WorkerData -> IO ()

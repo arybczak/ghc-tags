@@ -118,15 +118,15 @@ data GhcTagKind
 -- family) which for @'Parsed@ resolved to 'RdrName'
 --
 data GhcTag = GhcTag {
-    gtSrcSpan    :: !SrcSpan
+    gtSrcSpan    :: SrcSpan
     -- ^ term location
-  , gtTag        :: !FastString
+  , gtTag        :: FastString
     -- ^ tag's name
-  , gtKind       :: !GhcTagKind
+  , gtKind       :: GhcTagKind
     -- ^ tag's kind
-  , gtIsExported :: !Bool
+  , gtIsExported :: Bool
     -- ^ 'True' iff the term is exported
-  , gtFFI        :: !(Maybe Text)
+  , gtFFI        :: (Maybe Text)
     -- ^ @ffi@ import
   }
 

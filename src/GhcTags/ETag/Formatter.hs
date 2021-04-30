@@ -22,7 +22,7 @@ import           GhcTags.Tag
 --
 data BuilderWithSize = BuilderWithSize {
     builder     :: Builder,
-    builderSize :: !Int
+    builderSize :: Int
   }
 
 instance Semigroup BuilderWithSize where
