@@ -347,7 +347,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
 
     fromGhcTagKind :: GhcTagKind -> TagKind tk
     fromGhcTagKind = \case
-      --GtkModule                    -> TkModule
+      GtkModule                    -> TkModule
       GtkTerm                      -> TkTerm
       GtkFunction                  -> TkFunction
       GtkTypeConstructor {}        -> TkTypeConstructor

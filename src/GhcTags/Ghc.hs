@@ -23,11 +23,13 @@ import GHC.Types.FieldLabel
 import GHC.Types.Name (nameOccName, occNameFS)
 import GHC.Types.Name.Reader
 import GHC.Types.SrcLoc
+import GHC.Unit.Module.Name
 
 -- | Kind of the term.
 --
 data GhcTagKind
-    = GtkTerm
+    = GtkModule
+    | GtkTerm
     | GtkFunction
     | GtkTypeConstructor        (Maybe (HsKind GhcPs))
 
@@ -156,6 +158,7 @@ mkGhcTag (L gtSrcSpan rdrName) gtKind gtIsExported =
 --
 -- Supported identifiers:
 --
+--  * /module name/
 --  * /top level terms/
 --  * /data types/
 --  * /record fields/
@@ -171,12 +174,21 @@ mkGhcTag (L gtSrcSpan rdrName) gtKind gtIsExported =
 --
 getGhcTags :: Located HsModule
            -> [GhcTag]
-getGhcTags (L _ HsModule { hsmodDecls, hsmodExports }) =
-    hsDeclsToGhcTags mies hsmodDecls
+getGhcTags (L _ HsModule { hsmodName, hsmodDecls, hsmodExports }) =
+     maybeToList (mkModNameTag <$> hsmodName)
+  ++ hsDeclsToGhcTags mies hsmodDecls
   where
     mies :: Maybe [IE GhcPs]
     mies = map unLoc . unLoc <$> hsmodExports
 
+    mkModNameTag :: Located ModuleName -> GhcTag
+    mkModNameTag (L gtSrcSpan modName) =
+      GhcTag { gtSrcSpan
+             , gtTag = bytesFS $ moduleNameFS modName
+             , gtKind = GtkModule
+             , gtIsExported = True
+             , gtFFI = Nothing
+             }
 
 hsDeclsToGhcTags :: Maybe [IE GhcPs]
                  -> [LHsDecl GhcPs]
