@@ -2,14 +2,12 @@
 --
 module GhcTags.Ghc
   ( GhcTag (..)
-  , GhcTags
   , GhcTagKind (..)
   , getGhcTags
   , hsDeclsToGhcTags
   ) where
 
 import Data.ByteString (ByteString)
-import Data.Foldable
 import Data.Maybe
 import GHC.Data.FastString
 import GHC.Hs (HsModule(..))
@@ -52,7 +50,6 @@ data GhcTagKind
     | GtkForeignImport
     | GtkForeignExport
 
-
 -- | We can read names from using fields of type 'GHC.Hs.Extensions.IdP' (a type
 -- family) which for @'Parsed@ resolved to 'RdrName'
 --
@@ -68,9 +65,6 @@ data GhcTag = GhcTag {
   , gtFFI        :: Maybe String
     -- ^ @ffi@ import
   }
-
-type GhcTags = [GhcTag]
-
 
 -- | Check if an identifier is exported.
 --
@@ -174,7 +168,7 @@ mkGhcTag (L gtSrcSpan rdrName) gtKind gtIsExported =
 --  * /data type family instances constructors/
 --
 getGhcTags :: Located HsModule
-           -> GhcTags
+           -> [GhcTag]
 getGhcTags (L _ HsModule { hsmodDecls, hsmodExports }) =
     hsDeclsToGhcTags mies hsmodDecls
   where
@@ -184,9 +178,8 @@ getGhcTags (L _ HsModule { hsmodDecls, hsmodExports }) =
 
 hsDeclsToGhcTags :: Maybe [IE GhcPs]
                  -> [LHsDecl GhcPs]
-                 -> GhcTags
-hsDeclsToGhcTags mies =
-    reverse . foldl' go []
+                 -> [GhcTag]
+hsDeclsToGhcTags mies = foldr go []
   where
     fixLoc :: SrcSpan -> GhcTag -> GhcTag
     fixLoc loc gt@GhcTag { gtSrcSpan = UnhelpfulSpan {} } = gt { gtSrcSpan = loc }
@@ -218,8 +211,8 @@ hsDeclsToGhcTags mies =
 
     -- Main routine which traverse all top level declarations.
     --
-    go :: GhcTags -> LHsDecl GhcPs -> GhcTags
-    go tags (L decLoc hsDecl) = case hsDecl of
+    go :: LHsDecl GhcPs -> [GhcTag] -> [GhcTag]
+    go (L decLoc hsDecl) tags = case hsDecl of
 
       -- type or class declaration
       TyClD _ tyClDecl ->
@@ -259,15 +252,13 @@ hsDeclsToGhcTags mies =
                -- class methods
              : (mkClsMemberTags decLoc tcdLName . unLoc) `concatMap` tcdSigs
                -- default methods
-            ++ foldl' (\tags' hsBind -> mkHsBindLRTags decLoc (unLoc hsBind) ++ tags')
-                     []
-                     tcdMeths
+            ++ concatMap (\hsBind -> mkHsBindLRTags decLoc (unLoc hsBind)) tcdMeths
             -- associated types
             ++ ((\a -> mkFamilyDeclTags decLoc a (Just tcdLName)) . unLoc) `mapMaybe` tcdATs
             -- associated type defaults (data type families, type families
             -- (open or closed)
-            ++ foldl'
-                (\tags' (L _ decl'@(TyFamInstDecl (HsIB { hsib_body = tyFamDeflEqn }))) ->
+            ++ foldr
+                (\(L _ decl'@(TyFamInstDecl (HsIB { hsib_body = tyFamDeflEqn }))) tags' ->
                   let decl = Just decl' in
                     case tyFamDeflEqn of
                       FamEqn { feqn_rhs = L _ hsType } ->
@@ -361,7 +352,7 @@ hsDeclsToGhcTags mies =
                -- name of the type
                -> ConDecl GhcPs
                -- constructor declaration
-               -> GhcTags
+               -> [GhcTag]
 
     mkConsTags decLoc tyName con@ConDeclGADT { con_names, con_args } =
          (\n -> mkGhcTagForMember decLoc n tyName (GtkGADTConstructor con))
@@ -373,17 +364,16 @@ hsDeclsToGhcTags mies =
           (GtkDataConstructor con)
       : mkHsConDeclDetails decLoc tyName con_args
 
-    mkHsConDeclDetails :: SrcSpan -> Located RdrName -> HsConDeclDetails GhcPs -> GhcTags
+    mkHsConDeclDetails :: SrcSpan -> Located RdrName -> HsConDeclDetails GhcPs -> [GhcTag]
     mkHsConDeclDetails decLoc tyName (RecCon (L _ fields)) =
-        foldl' f [] fields
+        foldr f [] fields
       where
-        f :: GhcTags -> LConDeclField GhcPs -> GhcTags
-        f ts (L _ ConDeclField { cd_fld_names }) = foldl' g ts cd_fld_names
+        f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
+        f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
 
-        g :: GhcTags -> LFieldOcc GhcPs -> GhcTags
-        g ts (L _ FieldOcc { rdrNameFieldOcc }) =
+        g :: LFieldOcc GhcPs -> GhcTag
+        g (L _ FieldOcc { rdrNameFieldOcc }) =
             mkGhcTagForMember decLoc rdrNameFieldOcc tyName GtkRecordField
-          : ts
 
     mkHsConDeclDetails _ _ _ = []
 
@@ -391,7 +381,7 @@ hsDeclsToGhcTags mies =
     mkHsBindLRTags :: SrcSpan
                    -- ^ declaration's 'SrcSpan'
                    -> HsBindLR GhcPs GhcPs
-                   -> GhcTags
+                   -> [GhcTag]
     mkHsBindLRTags decLoc hsBind =
       case hsBind of
         FunBind { fun_id } -> [mkGhcTag' decLoc fun_id GtkFunction]
@@ -410,7 +400,7 @@ hsDeclsToGhcTags mies =
 
         PatSynBind _ PSB { psb_id } -> [mkGhcTag' decLoc psb_id GtkPatternSynonym]
 
-    mkClsMemberTags :: SrcSpan -> Located RdrName -> Sig GhcPs -> GhcTags
+    mkClsMemberTags :: SrcSpan -> Located RdrName -> Sig GhcPs -> [GhcTag]
     mkClsMemberTags decLoc clsName (TypeSig   _ lhs hsSigWcType) =
       (\n -> mkGhcTagForMember decLoc n clsName (GtkTypeSignature hsSigWcType))
       `map` lhs
@@ -423,7 +413,7 @@ hsDeclsToGhcTags mies =
     mkClsMemberTags _ _ _ = []
 
 
-    mkSigTags :: SrcSpan -> Sig GhcPs -> GhcTags
+    mkSigTags :: SrcSpan -> Sig GhcPs -> [GhcTag]
     mkSigTags decLoc (TypeSig   _ lhs hsSigWcType)
                                        = flip (mkGhcTag' decLoc) (GtkTypeSignature hsSigWcType)
                                          `map` lhs
@@ -499,7 +489,7 @@ hsDeclsToGhcTags mies =
 
     -- data family instance declaration
     --
-    mkDataFamInstDeclTag :: SrcSpan -> DataFamInstDecl GhcPs -> GhcTags
+    mkDataFamInstDeclTag :: SrcSpan -> DataFamInstDecl GhcPs -> [GhcTag]
     mkDataFamInstDeclTag decLoc DataFamInstDecl { dfid_eqn } =
       case dfid_eqn of
 
