@@ -1,7 +1,3 @@
-{-# LANGUAGE BangPatterns   #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE NamedFieldPuns #-}
-
 -- | Simple etags formatter. See <https://en.wikipedia.org/wiki/Ctags#Etags>
 --
 module GhcTags.ETag.Formatter

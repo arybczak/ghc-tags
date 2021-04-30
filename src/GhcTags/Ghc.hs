@@ -1,9 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 -- | Generate tags from @'HsModule' 'GhcPs'@ representation.
 --
 module GhcTags.Ghc

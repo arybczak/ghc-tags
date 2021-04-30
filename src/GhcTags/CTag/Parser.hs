@@ -1,12 +1,3 @@
-{-# LANGUAGE BangPatterns               #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-
 -- | Parser combinators for vim style tags (ctags)
 --
 module GhcTags.CTag.Parser

@@ -1,7 +1,3 @@
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | 'bytestring''s 'Builder' for a 'Tag'
 --
 module GhcTags.CTag.Formatter

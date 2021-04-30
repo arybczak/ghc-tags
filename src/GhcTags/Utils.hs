@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-
 module GhcTags.Utils
   ( endOfLine
   , notNewLine
