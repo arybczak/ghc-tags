@@ -57,7 +57,6 @@ executable ghc-tags
                        , text
                        , threads
                        , time
-                       , transformers
                        , vector
 
     hs-source-dirs:      src
