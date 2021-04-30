@@ -9,10 +9,12 @@ module GhcTags.Ghc
 
 import Data.ByteString (ByteString)
 import Data.Maybe
+import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Hs (HsModule(..))
 import GHC.Hs.Binds
 import GHC.Hs.Decls hiding (famResultKindSignature)
+import GHC.Hs.Expr
 import GHC.Hs.Extension
 import GHC.Hs.ImpExp
 import GHC.Hs.Type hiding (hsSigWcType)
@@ -183,7 +185,7 @@ hsDeclsToGhcTags mies = foldr go []
   where
     fixLoc :: SrcSpan -> GhcTag -> GhcTag
     fixLoc loc gt@GhcTag { gtSrcSpan = UnhelpfulSpan {} } = gt { gtSrcSpan = loc }
-    fixLoc _   gt                                      = gt
+    fixLoc _   gt                                         = gt
 
     -- like 'mkGhcTag' but checks if the identifier is exported
     mkGhcTag' :: SrcSpan
@@ -280,17 +282,25 @@ hsDeclsToGhcTags mies = foldr go []
           -- class instance declaration
           ClsInstD { cid_inst } ->
             case cid_inst of
-              ClsInstDecl { cid_poly_ty, cid_tyfam_insts, cid_datafam_insts } ->
+              ClsInstDecl { cid_poly_ty, cid_tyfam_insts, cid_datafam_insts
+                          , cid_binds, cid_sigs } ->
                   case cid_poly_ty of
                     -- TODO: @hsbib_body :: LHsType GhcPs@
                     HsIB { hsib_body } ->
                       case mkLHsTypeTag decLoc hsib_body of
-                        Nothing  ->       tyFamTags ++ dataFamTags ++ tags
-                        Just tag -> tag : tyFamTags ++ dataFamTags ++ tags
+                        Nothing  ->       tags'
+                        Just tag -> tag : tags'
                 where
-                  -- associated type and data type family instances
-                  dataFamTags = (mkDataFamInstDeclTag decLoc . unLoc) `concatMap` cid_datafam_insts
-                  tyFamTags   = (mkTyFamInstDeclTag   decLoc . unLoc) `mapMaybe`  cid_tyfam_insts
+                  tags' =
+                       -- type family instances
+                       mapMaybe (mkTyFamInstDeclTag decLoc . unLoc) cid_tyfam_insts
+                       -- data family instances
+                    ++ concatMap (mkDataFamInstDeclTag decLoc . unLoc) cid_datafam_insts
+                    -- class methods
+                    ++ concatMap (mkHsBindLRTags decLoc . unLoc) cid_binds
+                       -- optional method signatures
+                    ++ concatMap (mkSigTags decLoc . unLoc) cid_sigs
+                    ++ tags
 
           -- data family instance
           DataFamInstD { dfid_inst } ->
@@ -364,6 +374,14 @@ hsDeclsToGhcTags mies = foldr go []
           (GtkDataConstructor con)
       : mkHsConDeclDetails decLoc tyName con_args
 
+    mkHsLocalBindsTags :: SrcSpan -> HsLocalBindsLR GhcPs GhcPs -> [GhcTag]
+    mkHsLocalBindsTags decLoc (HsValBinds _ (ValBinds _ hsBindsLR sigs)) =
+         -- where clause bindings
+         concatMap (mkHsBindLRTags decLoc . unLoc) (bagToList hsBindsLR)
+      ++ concatMap (mkSigTags decLoc . unLoc) sigs
+
+    mkHsLocalBindsTags _ _ = []
+
     mkHsConDeclDetails :: SrcSpan -> Located RdrName -> HsConDeclDetails GhcPs -> [GhcTag]
     mkHsConDeclDetails decLoc tyName (RecCon (L _ fields)) =
         foldr f [] fields
@@ -382,9 +400,14 @@ hsDeclsToGhcTags mies = foldr go []
                    -- ^ declaration's 'SrcSpan'
                    -> HsBindLR GhcPs GhcPs
                    -> [GhcTag]
-    mkHsBindLRTags decLoc hsBind =
-      case hsBind of
-        FunBind { fun_id } -> [mkGhcTag' decLoc fun_id GtkFunction]
+    mkHsBindLRTags decLoc hsBind = case hsBind of
+        FunBind { fun_id, fun_matches } ->
+          let binds = map (unLoc . grhssLocalBinds . m_grhss . unLoc)
+                    . unLoc
+                    . mg_alts
+                    $ fun_matches
+          in   mkGhcTag' decLoc fun_id GtkFunction
+             : concatMap (mkHsLocalBindsTags decLoc) binds
 
         -- TODO
         -- This is useful fo generating tags for
