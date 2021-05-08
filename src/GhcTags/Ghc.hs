@@ -442,8 +442,8 @@ hsDeclsToGhcTags mies = foldr go []
     mkClsMemberTags decLoc clsName (PatSynSig _ lhs _) =
       (\n -> mkGhcTagForMember decLoc n clsName GtkPatternSynonym)
       `map` lhs
-    mkClsMemberTags decLoc clsName (ClassOpSig _ _ lhs HsIB { hsib_body = L _ hsType}) =
-      (\n ->  mkGhcTagForMember decLoc n clsName (GtkTypeClassMember hsType))
+    mkClsMemberTags decLoc clsName (ClassOpSig _ _ lhs hsSigWcType) =
+      (\n ->  mkGhcTagForMember decLoc n clsName (GtkTypeSignature HsWC { hswc_ext = NoExtField, hswc_body = hsSigWcType }))
       `map` lhs
     mkClsMemberTags _ _ _ = []
 
@@ -455,8 +455,8 @@ hsDeclsToGhcTags mies = foldr go []
     mkSigTags decLoc (PatSynSig _ lhs _)
                                        = flip (mkGhcTag' decLoc) GtkPatternSynonym
                                          `map` lhs
-    mkSigTags decLoc (ClassOpSig _ _ lhs HsIB { hsib_body = L _ hsType })
-                                       = flip (mkGhcTag' decLoc) (GtkTypeClassMember hsType)
+    mkSigTags decLoc (ClassOpSig _ _ lhs hsSigWcType)
+                                       = flip (mkGhcTag' decLoc) (GtkTypeSignature HsWC { hswc_ext = NoExtField, hswc_body = hsSigWcType })
                                          `map` lhs
     mkSigTags _ IdSig {}               = []
     -- TODO: generate theses with additional info (fixity)

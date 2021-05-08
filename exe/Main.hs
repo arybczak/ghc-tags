@@ -29,7 +29,6 @@ import GHC.SysTools
 import GHC.Types.SrcLoc
 import GHC.Unit.Module.Env
 import GHC.Utils.Error
-import GHC.Utils.Outputable
 import System.Directory
 import System.Environment
 import System.FilePath
@@ -39,6 +38,7 @@ import qualified Control.Concurrent.Thread.Group as TG
 import qualified GHC
 import qualified GHC.Driver.Pipeline as DP
 import qualified GHC.Parser as Parser
+import qualified GHC.Utils.Outputable as Out
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Builder as BS
 import qualified Data.Map.Strict as Map
@@ -141,7 +141,7 @@ worker WorkerData{..} = runGhc $ do
       loop
   where
     report flags msgs =
-      sequence_ [ putStrLn $ showSDoc flags msg
+      sequence_ [ putStrLn $ Out.showSDoc flags msg
                 | msg <- pprErrMsgBagWithLoc msgs
                 ]
 
@@ -278,7 +278,7 @@ cleanupTags = Map.traverseMaybeWithKey $ \file -> \case
             putStrLn $ "Unexpected error: " ++ show err
             pure Nothing
           Right content -> do
-            let newTags = ignoreSimilarClose $ sortBy ETag.compareTags tags
+            let newTags = ignoreSimilarClose $ sortBy compareNAK tags
                 linesWithOffsets = V.fromList
                                  . snd
                                  . mapAccumL addOffset 0
@@ -292,27 +292,26 @@ cleanupTags = Map.traverseMaybeWithKey $ \file -> \case
           True  -> pure $ Just tags
           False -> pure Nothing
   where
+    -- Group the same tags together so that similar ones can be eliminated.
+    compareNAK t0 t1 = on compare tagName t0 t1
+                    <> on compare tagAddr t0 t1
+                    <> on compare tagKind t0 t1
+
     ignoreSimilarClose (a : b : rest)
       | tagName a == tagName b =
-        if | a `betterThan` b -> a     : ignoreSimilarClose rest
-           | b `betterThan` a ->     b : ignoreSimilarClose rest
-           | otherwise        -> a : b : ignoreSimilarClose rest
+        if | a `betterThan` b -> a : ignoreSimilarClose rest
+           | b `betterThan` a -> b : ignoreSimilarClose rest
+           | otherwise        -> a : ignoreSimilarClose (b : rest)
       | otherwise = a : ignoreSimilarClose (b : rest)
       where
-        lineDiff x y = abs (lineNo x - lineNo y)
-          where
-            lineNo :: ETag -> Int
-            lineNo Tag{tagAddr = TagLineCol l _} = l
-
-        betterThan x y
+        -- Prefer functions to type signatures and data/GADT constructors to
+        -- type constructors.
+        x `betterThan` y
           =  (   tagKind x == TkFunction
               && tagKind y == TkTypeSignature
              )
-          || (   tagKind x == TkTypeConstructor
-              && (   tagKind y == TkDataConstructor
-                  || tagKind y == TkGADTConstructor
-                 )
-              && lineDiff x y <= 1
+          || (   (tagKind x == TkDataConstructor || tagKind x == TkGADTConstructor)
+              &&  tagKind y == TkTypeConstructor
              )
     ignoreSimilarClose tags = tags
 
@@ -330,7 +329,7 @@ cleanupTags = Map.traverseMaybeWithKey $ \file -> \case
 writeTags :: FilePath -> CleanTagMap -> IO ()
 writeTags tagsFile tags = withFile tagsFile WriteMode $ \h ->
     BS.hPutBuilder h
-  . Map.foldMapWithKey (\path -> ETag.formatTagsFile path)
+  . Map.foldMapWithKey (\path -> ETag.formatTagsFile path . sortBy ETag.compareTags)
   $ tags
 
 ----------------------------------------
