@@ -101,7 +101,7 @@ ghcConfig = Config
 
 ----------------------------------------
 
-data Processed a = Processed Bool a
+data Updated a = Updated Bool a
 
 data WorkerData = WorkerData
   { wdConfig :: Config
@@ -175,6 +175,7 @@ main = do
       wdQueue <- newTBQueueIO (fromIntegral n)
       pure WorkerData{..}
 
+    -- Walk a list of paths recursively and process eligible source files.
     processFiles :: WorkerData -> [String] -> IO ()
     processFiles wd@WorkerData{..} = mapM_ $ \path ->
       if path `elem` configExcludeDirs wdConfig
@@ -184,21 +185,24 @@ main = do
           paths <- map (path </>) <$> listDirectory path
           processFiles wd paths
         False -> when (takeExtension path `elem` haskellExtensions) $ do
+          -- Source files are scanned and updated only if their mtime changed or
+          -- it's not on the list.
           time <- getModificationTime path
-          processPath <- withMVar wdTimes $ \times -> pure $
+          updateHsFile <- withMVar wdTimes $ \times -> pure $
             case TagFileName (T.pack path) `Map.lookup` times of
-              Just (Processed _ oldTime) -> oldTime < time
-              Nothing                    -> True
-          when processPath $ do
+              Just (Updated _ oldTime) -> oldTime < time
+              Nothing                  -> True
+          when updateHsFile $ do
             atomically . writeTBQueue wdQueue $ Just (path, time)
 
     haskellExtensions = [".hs", ".hs-boot", ".lhs"]
 
 ----------------------------------------
 
-type ModTimes      = Map.Map TagFileName (Processed UTCTime)
+type ModTimes      = Map.Map TagFileName (Updated UTCTime)
 type CleanModTimes = Map.Map TagFileName UTCTime
 
+-- | Read the file with mtimes of previously processed source files.
 readTimes :: FilePath -> IO ModTimes
 readTimes timesFile = doesFileExist timesFile >>= \case
   False -> pure Map.empty
@@ -211,24 +215,27 @@ readTimes timesFile = doesFileExist timesFile >>= \case
     parse :: ModTimes -> [T.Text] -> ModTimes
     parse !acc (path : mtime : rest) =
       case iso8601ParseM (T.unpack mtime) of
-        Just time -> let checkedTime = Processed False time
+        Just time -> let checkedTime = Updated False time
                      in parse (Map.insert (TagFileName path) checkedTime acc) rest
         Nothing   -> parse acc rest
     parse !acc _ = acc
 
+-- | Update an mtime of a source file with a new value.
 updateTimesWith :: TagFileName -> UTCTime -> ModTimes -> ModTimes
-updateTimesWith file time = Map.insert file (Processed True time)
+updateTimesWith file time = Map.insert file (Updated True time)
 
+-- | Check if files that were not updated exist and drop them if they don't.
 cleanupTimes :: CleanTagMap -> ModTimes -> IO CleanModTimes
 cleanupTimes tagMap = Map.traverseMaybeWithKey $ \file -> \case
-  Processed processed time
-    | processed || file `Map.member` tagMap -> pure $ Just time
+  Updated updated time
+    | updated || file `Map.member` tagMap -> pure $ Just time
     | otherwise -> do
         let path = T.unpack $ getTagFileName file
         doesFileExist path >>= \case
           True  -> pure $ Just time
           False -> pure Nothing
 
+-- | Update the file with mtimes with new values.
 writeTimes :: FilePath -> CleanModTimes -> IO ()
 writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
   forM_ (Map.toList times) $ \(path, mtime) -> do
@@ -237,7 +244,7 @@ writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
 
 ----------------------------------------
 
-type TagMap      = Map.Map TagFileName (Processed [ETag])
+type TagMap      = Map.Map TagFileName (Updated [ETag])
 type CleanTagMap = Map.Map TagFileName [ETag]
 
 readTags :: FilePath -> IO TagMap
@@ -246,7 +253,7 @@ readTags tagsFile = doesFileExist tagsFile >>= \case
   True  -> do
     res <- tryIOError $ ETag.parseTagsFile . T.decodeUtf8 =<< BS.readFile tagsFile
     case res of
-      Right (Right tags) -> pure . Map.map (Processed False)
+      Right (Right tags) -> pure . Map.map (Updated False)
                                  $ tags
       -- reading failed
       Left err -> do
@@ -265,12 +272,12 @@ updateTagsWith dflags hsModule acc = fileTags `Map.union` acc
                . map (second (:[]))
                . mapMaybe (ghcTagToTag SingETag dflags)
                $ getGhcTags hsModule
-      in Map.map (Processed True) $!! tags
+      in Map.map (Updated True) $!! tags
 
 cleanupTags :: TagMap -> IO CleanTagMap
 cleanupTags = Map.traverseMaybeWithKey $ \file -> \case
-  Processed processed tags
-    | processed -> do
+  Updated updated tags
+    | updated -> do
         let path = T.unpack $ getTagFileName file
             addOffset !off line = (off + BS.length line + 1, (off, line))
         tryIOError (BS.readFile path) >>= \case
