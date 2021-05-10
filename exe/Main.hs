@@ -105,8 +105,8 @@ data Updated a = Updated Bool a
 
 data WorkerData = WorkerData
   { wdConfig :: Config
-  , wdTags   :: MVar TagMap
-  , wdTimes  :: MVar ModTimes
+  , wdTags   :: MVar DirtyTagMap
+  , wdTimes  :: MVar DirtyModTimes
   , wdQueue  :: TBQueue (Maybe (FilePath, UTCTime))
   }
 
@@ -199,11 +199,11 @@ main = do
 
 ----------------------------------------
 
-type ModTimes      = Map.Map TagFileName (Updated UTCTime)
-type CleanModTimes = Map.Map TagFileName UTCTime
+type DirtyModTimes = Map.Map TagFileName (Updated UTCTime)
+type ModTimes      = Map.Map TagFileName UTCTime
 
 -- | Read the file with mtimes of previously processed source files.
-readTimes :: FilePath -> IO ModTimes
+readTimes :: FilePath -> IO DirtyModTimes
 readTimes timesFile = doesFileExist timesFile >>= \case
   False -> pure Map.empty
   True  -> tryIOError (T.readFile timesFile) >>= \case
@@ -212,7 +212,7 @@ readTimes timesFile = doesFileExist timesFile >>= \case
       putStrLn $ "Error while reading " ++ timesFile ++ ": " ++ show err
       pure Map.empty
   where
-    parse :: ModTimes -> [T.Text] -> ModTimes
+    parse :: DirtyModTimes -> [T.Text] -> DirtyModTimes
     parse !acc (path : mtime : rest) =
       case iso8601ParseM (T.unpack mtime) of
         Just time -> let checkedTime = Updated False time
@@ -221,11 +221,11 @@ readTimes timesFile = doesFileExist timesFile >>= \case
     parse !acc _ = acc
 
 -- | Update an mtime of a source file with a new value.
-updateTimesWith :: TagFileName -> UTCTime -> ModTimes -> ModTimes
+updateTimesWith :: TagFileName -> UTCTime -> DirtyModTimes -> DirtyModTimes
 updateTimesWith file time = Map.insert file (Updated True time)
 
 -- | Check if files that were not updated exist and drop them if they don't.
-cleanupTimes :: CleanTagMap -> ModTimes -> IO CleanModTimes
+cleanupTimes :: TagMap -> DirtyModTimes -> IO ModTimes
 cleanupTimes tagMap = Map.traverseMaybeWithKey $ \file -> \case
   Updated updated time
     | updated || file `Map.member` tagMap -> pure $ Just time
@@ -236,7 +236,7 @@ cleanupTimes tagMap = Map.traverseMaybeWithKey $ \file -> \case
           False -> pure Nothing
 
 -- | Update the file with mtimes with new values.
-writeTimes :: FilePath -> CleanModTimes -> IO ()
+writeTimes :: FilePath -> ModTimes -> IO ()
 writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
   forM_ (Map.toList times) $ \(path, mtime) -> do
     T.hPutStrLn h $ getTagFileName path
@@ -244,10 +244,10 @@ writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
 
 ----------------------------------------
 
-type TagMap      = Map.Map TagFileName (Updated [ETag])
-type CleanTagMap = Map.Map TagFileName [ETag]
+type DirtyTagMap = Map.Map TagFileName (Updated [ETag])
+type TagMap      = Map.Map TagFileName [ETag]
 
-readTags :: FilePath -> IO TagMap
+readTags :: FilePath -> IO DirtyTagMap
 readTags tagsFile = doesFileExist tagsFile >>= \case
   False -> pure Map.empty
   True  -> do
@@ -264,7 +264,7 @@ readTags tagsFile = doesFileExist tagsFile >>= \case
         putStrLn $ "Error while parsing " ++ tagsFile ++ ": " ++ show err
         pure Map.empty
 
-updateTagsWith :: DynFlags -> Located HsModule -> TagMap -> TagMap
+updateTagsWith :: DynFlags -> Located HsModule -> DirtyTagMap -> DirtyTagMap
 updateTagsWith dflags hsModule acc = fileTags `Map.union` acc
   where
     fileTags =
@@ -274,7 +274,7 @@ updateTagsWith dflags hsModule acc = fileTags `Map.union` acc
                $ getGhcTags hsModule
       in Map.map (Updated True) $!! tags
 
-cleanupTags :: TagMap -> IO CleanTagMap
+cleanupTags :: DirtyTagMap -> IO TagMap
 cleanupTags = Map.traverseMaybeWithKey $ \file -> \case
   Updated updated tags
     | updated -> do
@@ -333,7 +333,7 @@ cleanupTags = Map.traverseMaybeWithKey $ \file -> \case
           TagDefinition . T.takeWhile isPrint $ T.decodeUtf8 line
         }
 
-writeTags :: FilePath -> CleanTagMap -> IO ()
+writeTags :: FilePath -> TagMap -> IO ()
 writeTags tagsFile tags = withFile tagsFile WriteMode $ \h ->
     BS.hPutBuilder h
   . Map.foldMapWithKey (\path -> ETag.formatTagsFile path . sortBy ETag.compareTags)
