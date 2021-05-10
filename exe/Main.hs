@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.DeepSeq (($!!))
+import Control.DeepSeq
 import Control.Monad
 import Data.Bifunctor
 import Data.Char
@@ -306,34 +306,20 @@ cleanupTags DirtyTagMap{..} = do
   newTags <- (`Map.traverseMaybeWithKey` dtmTags) $ \file -> \case
     Updated updated tags
       | updated -> do
-          let newTags = ignoreSimilarClose $ sortBy compareNAK tags
+          let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
           case dtmKind of
-            SingCTag -> pure $!! Just newTags
-            SingETag -> do
-              -- ETags needs file offsets filled.
-              let path = T.unpack $ getTagFileName file
-                  addOffset !off line = (off + BS.length line + 1, (off, line))
-              tryIOError (BS.readFile path) >>= \case
-                Left err -> do
-                  putStrLn $ "Unexpected error: " ++ show err
-                  pure Nothing
-                Right content -> do
-                  let linesWithOffsets = V.fromList
-                                       . snd
-                                       . mapAccumL addOffset 0
-                                       . BS.lines
-                                       $ content
-                  pure $!! Just (fillOffsets linesWithOffsets newTags)
+            SingCTag -> pure $ Just cleanedTags
+            SingETag -> addFileOffsets file cleanedTags
       | otherwise -> do
           let path = T.unpack $ getTagFileName file
           --putStrLn $ "Checking " ++ path
           doesFileExist path >>= \case
             True  -> pure $ Just tags
             False -> pure Nothing
-  pure $ TagMap { tmKind = dtmKind
-                , tmHeaders = dtmHeaders
-                , tmTags = newTags
-                }
+  newTags `deepseq` pure TagMap { tmKind = dtmKind
+                                , tmHeaders = dtmHeaders
+                                , tmTags = newTags
+                                }
   where
     -- Group the same tags together so that similar ones can be eliminated.
     compareNAK t0 t1 = on compare tagName t0 t1
@@ -358,6 +344,23 @@ cleanupTags DirtyTagMap{..} = do
              )
     ignoreSimilarClose tags = tags
 
+-- | Add file offsets to etags from a specific file.
+addFileOffsets :: TagFileName -> [ETag] -> IO (Maybe [ETag])
+addFileOffsets file tags = do
+  let path = T.unpack $ getTagFileName file
+      addOffset !off line = (off + BS.length line + 1, (off, line))
+  tryIOError (BS.readFile path) >>= \case
+    Left err -> do
+      putStrLn $ "Unexpected error: " ++ show err
+      pure Nothing
+    Right content -> do
+      let linesWithOffsets = V.fromList
+                           . snd
+                           . mapAccumL addOffset 0
+                           . BS.lines
+                           $ content
+      pure . Just $ fillOffsets linesWithOffsets tags
+  where
     fillOffsets :: V.Vector (Int, BS.ByteString) -> [ETag] -> [ETag]
     fillOffsets linesWithOffsets = mapMaybe $ \tag -> do
       let TagLineCol lineNo _ = tagAddr tag
