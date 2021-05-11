@@ -2,6 +2,7 @@ module Main (main) where
 
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
+import Control.Exception
 import Control.DeepSeq
 import Control.Monad
 import Data.Bifunctor
@@ -119,7 +120,7 @@ worker WorkerData{..} = runGhc $ do
     Nothing -> pure ()
     Just (file, mtime) -> do
       --putStrLn $ "Processing " ++ file
-      DP.preprocess env file Nothing Nothing >>= \case
+      handle showErr $ DP.preprocess env file Nothing Nothing >>= \case
         Left errs -> report gflags errs
         Right (flags, newFile) -> do
           buffer <- hGetStringBuffer newFile
@@ -140,6 +141,9 @@ worker WorkerData{..} = runGhc $ do
                   pure $! updateTimesWith path mtime times
       loop
   where
+    showErr :: GHC.GhcException -> IO ()
+    showErr = putStrLn . show
+
     report flags msgs =
       sequence_ [ putStrLn $ Out.showSDoc flags msg
                 | msg <- pprErrMsgBagWithLoc msgs
