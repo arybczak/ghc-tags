@@ -26,6 +26,7 @@ import GHC.LanguageExtensions
 import GHC.Parser.Lexer
 import GHC.Paths
 import GHC.Platform
+import GHC.Settings
 import GHC.SysTools
 import GHC.Types.SrcLoc
 import GHC.Unit.Module.Env
@@ -58,15 +59,25 @@ data Config = Config
   , configExtensions  :: [Extension]
   , configCppIncludes :: [FilePath]
   , configExcludeDirs :: [FilePath]
+  , configCppOptions  :: [String]
   }
 
 applyConfig :: Config -> DynFlags -> DynFlags
-applyConfig Config{..} = applyCppIncludes . applyExtensions . applyLanguage
+applyConfig Config{..} = applyCppOptions . applyCppIncludes . applyExtensions . applyLanguage
   where
     applyLanguage fs = lang_set fs (Just configLanguage)
+
     applyExtensions fs = foldl' xopt_set fs configExtensions
+
     applyCppIncludes fs =
-      fs { includePaths = addGlobalInclude (includePaths fs) configCppIncludes }
+      fs { includePaths = addGlobalInclude (includePaths fs) configCppIncludes
+         }
+
+    applyCppOptions fs = foldr addOptP fs configCppOptions
+      where
+        addOptP opt acc =
+          let ts = toolSettings acc
+          in acc { toolSettings = ts { toolSettings_opt_P = opt : toolSettings_opt_P ts } }
 
 defConfig :: Config
 defConfig = Config
@@ -79,6 +90,8 @@ defConfig = Config
                        , TypeApplications
                        ]
   , configCppIncludes = []
+  , configCppOptions = [ "-DMIN_VERSION_unordered_containers(x,y,z)=1"
+                       ]
   , configExcludeDirs = [ "dist"
                         , "dist-newstyle"
                         ]
@@ -95,6 +108,7 @@ ghcConfig = Config
                         , "../ghc/includes/dist-derivedconstants/header"
                         , "../ghc/_build/stage1/compiler/build"
                         ]
+  , configCppOptions = []
   , configExcludeDirs = [ "../ghc/compiler/stage1"
                         , "../ghc/compiler/stage2"
                         ]
