@@ -106,7 +106,7 @@ data Updated a = Updated Bool a
 
 data WorkerData = WorkerData
   { wdConfig :: Config
-  , wdTags   :: MVar DirtyTagMap
+  , wdTags   :: MVar DirtyTags
   , wdTimes  :: MVar DirtyModTimes
   , wdQueue  :: TBQueue (Maybe (FilePath, UTCTime))
   }
@@ -229,10 +229,10 @@ updateTimesWith :: TagFileName -> UTCTime -> DirtyModTimes -> DirtyModTimes
 updateTimesWith file time = Map.insert file (Updated True time)
 
 -- | Check if files that were not updated exist and drop them if they don't.
-cleanupTimes :: TagMap -> DirtyModTimes -> IO ModTimes
-cleanupTimes TagMap{..} = Map.traverseMaybeWithKey $ \file -> \case
+cleanupTimes :: Tags -> DirtyModTimes -> IO ModTimes
+cleanupTimes Tags{..} = Map.traverseMaybeWithKey $ \file -> \case
   Updated updated time
-    | updated || file `Map.member` tmTags -> pure $ Just time
+    | updated || file `Map.member` tTags -> pure $ Just time
     | otherwise -> do
         let path = T.unpack $ getTagFileName file
         doesFileExist path >>= \case
@@ -248,42 +248,42 @@ writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
 
 ----------------------------------------
 
-data DirtyTagMap = forall tk. DirtyTagMap
-  { dtmKind    :: SingTagKind tk
-  , dtmHeaders :: [CTag.Header]
-  , dtmTags    :: Map.Map TagFileName (Updated [Tag tk])
+data DirtyTags = forall tk. DirtyTags
+  { dtKind    :: SingTagKind tk
+  , dtHeaders :: [CTag.Header]
+  , dtTags    :: Map.Map TagFileName (Updated [Tag tk])
   }
 
-data TagMap = forall tk. TagMap
-  { tmKind    :: SingTagKind tk
-  , tmHeaders :: [CTag.Header]
-  , tmTags    :: Map.Map TagFileName [Tag tk]
+data Tags = forall tk. Tags
+  { tKind    :: SingTagKind tk
+  , tHeaders :: [CTag.Header]
+  , tTags    :: Map.Map TagFileName [Tag tk]
   }
 
-readTags :: forall tk. SingTagKind tk -> FilePath -> IO DirtyTagMap
+readTags :: forall tk. SingTagKind tk -> FilePath -> IO DirtyTags
 readTags tk tagsFile = doesFileExist tagsFile >>= \case
-  False -> pure newDirtyTagMap
+  False -> pure newDirtyTags
   True  -> do
     res <- tryIOError $ parseTagsFile . T.decodeUtf8 =<< BS.readFile tagsFile
     case res of
       Right (Right (headers, tags)) ->
-        pure $ DirtyTagMap { dtmKind = tk
-                           , dtmHeaders = headers
-                           , dtmTags = Map.map (Updated False) tags
-                           }
+        pure $ DirtyTags { dtKind = tk
+                         , dtHeaders = headers
+                         , dtTags = Map.map (Updated False) tags
+                         }
       -- reading failed
       Left err -> do
         putStrLn $ "Error while reading " ++ tagsFile ++ ": " ++ show err
-        pure newDirtyTagMap
+        pure newDirtyTags
       -- parsing failed
       Right (Left err) -> do
         putStrLn $ "Error while parsing " ++ tagsFile ++ ": " ++ show err
-        pure newDirtyTagMap
+        pure newDirtyTags
   where
-    newDirtyTagMap = DirtyTagMap { dtmKind = tk
-                                 , dtmHeaders = []
-                                 , dtmTags = Map.empty
-                                 }
+    newDirtyTags = DirtyTags { dtKind = tk
+                             , dtHeaders = []
+                             , dtTags = Map.empty
+                             }
 
     parseTagsFile
       :: T.Text
@@ -292,26 +292,26 @@ readTags tk tagsFile = doesFileExist tagsFile >>= \case
       SingETag -> fmap (fmap ([], )) . ETag.parseTagsFile
       SingCTag ->                      CTag.parseTagsFile
 
-updateTagsWith :: DynFlags -> Located HsModule -> DirtyTagMap -> DirtyTagMap
-updateTagsWith dflags hsModule DirtyTagMap{..} =
-  DirtyTagMap { dtmTags = fileTags `Map.union` dtmTags
-              , ..
-              }
+updateTagsWith :: DynFlags -> Located HsModule -> DirtyTags -> DirtyTags
+updateTagsWith dflags hsModule DirtyTags{..} =
+  DirtyTags { dtTags = fileTags `Map.union` dtTags
+            , ..
+            }
   where
     fileTags =
       let tags = Map.fromListWith (++)
                . map (second (:[]))
-               . mapMaybe (ghcTagToTag dtmKind dflags)
+               . mapMaybe (ghcTagToTag dtKind dflags)
                $ getGhcTags hsModule
       in Map.map (Updated True) $!! tags
 
-cleanupTags :: DirtyTagMap -> IO TagMap
-cleanupTags DirtyTagMap{..} = do
-  newTags <- (`Map.traverseMaybeWithKey` dtmTags) $ \file -> \case
+cleanupTags :: DirtyTags -> IO Tags
+cleanupTags DirtyTags{..} = do
+  newTags <- (`Map.traverseMaybeWithKey` dtTags) $ \file -> \case
     Updated updated tags
       | updated -> do
           let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
-          case dtmKind of
+          case dtKind of
             SingCTag -> pure $ Just cleanedTags
             SingETag -> addFileOffsets file cleanedTags
       | otherwise -> do
@@ -320,10 +320,10 @@ cleanupTags DirtyTagMap{..} = do
           doesFileExist path >>= \case
             True  -> pure $ Just tags
             False -> pure Nothing
-  newTags `deepseq` pure TagMap { tmKind = dtmKind
-                                , tmHeaders = dtmHeaders
-                                , tmTags = newTags
-                                }
+  newTags `deepseq` pure Tags { tKind = dtKind
+                              , tHeaders = dtHeaders
+                              , tTags = newTags
+                              }
   where
     -- Group the same tags together so that similar ones can be eliminated.
     compareNAK t0 t1 = on compare tagName t0 t1
@@ -376,13 +376,13 @@ addFileOffsets file tags = do
           TagDefinition . T.takeWhile isPrint $ T.decodeUtf8 line
         }
 
-writeTags :: FilePath -> TagMap -> IO ()
-writeTags tagsFile TagMap{..} = withFile tagsFile WriteMode $ \h ->
-  BS.hPutBuilder h $ case tmKind of
-    SingETag -> (`Map.foldMapWithKey` tmTags) $ \path ->
+writeTags :: FilePath -> Tags -> IO ()
+writeTags tagsFile Tags{..} = withFile tagsFile WriteMode $ \h ->
+  BS.hPutBuilder h $ case tKind of
+    SingETag -> (`Map.foldMapWithKey` tTags) $ \path ->
       ETag.formatTagsFile path . sortBy ETag.compareTags
-    SingCTag -> CTag.formatTagsFile tmHeaders $
-      Map.map (sortBy CTag.compareTags) tmTags
+    SingCTag -> CTag.formatTagsFile tHeaders $
+      Map.map (sortBy CTag.compareTags) tTags
 
 ----------------------------------------
 
