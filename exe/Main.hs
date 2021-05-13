@@ -2,8 +2,8 @@ module Main (main) where
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception
 import Control.DeepSeq
+import Control.Exception
 import Control.Monad
 import Data.Bifunctor
 import Data.Char
@@ -37,18 +37,18 @@ import System.FilePath
 import System.IO
 import System.IO.Error
 import qualified Control.Concurrent.Thread.Group as TG
-import qualified GHC
-import qualified GHC.Driver.Pipeline as DP
-import qualified GHC.Parser as Parser
-import qualified GHC.Utils.Outputable as Out
-import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Builder as BS
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
+import qualified GHC
+import qualified GHC.Driver.Pipeline as DP
+import qualified GHC.Parser as Parser
+import qualified GHC.Utils.Outputable as Out
 
 import GhcTags
 import qualified GhcTags.CTag as CTag
