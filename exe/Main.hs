@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Control.Concurrent.MVar
+import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception
 import Control.DeepSeq
@@ -13,7 +13,7 @@ import Data.List
 import Data.Maybe (mapMaybe)
 import Data.Time
 import Data.Time.Format.ISO8601
-import GHC.Conc (getNumCapabilities)
+import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.StringBuffer
@@ -166,17 +166,17 @@ worker WorkerData{..} = runGhc $ do
 main :: IO ()
 main = do
   (conf : paths) <- getArgs
-  n <- getNumCapabilities
-  wd <- initWorkerData conf n
+  threads <- getAdjustedCapabilities
+  wd <- initWorkerData conf threads
 
   tg <- TG.new
   mask $ \restore -> do
-    replicateM_ n . TG.forkIO tg . restore $ worker wd
+    replicateM_ threads . TG.forkIO tg . restore $ worker wd
     -- If an exception is thrown, stop looking at files and clean up.
     handle ignoreEx . restore $ processFiles wd =<< if null paths
                                                     then listDirectory "."
                                                     else pure paths
-  atomically . replicateM_ n $ writeTBQueue (wdQueue wd) Nothing
+  atomically . replicateM_ threads $ writeTBQueue (wdQueue wd) Nothing
   TG.wait tg
 
   cleanTagMap <- withMVar (wdTags wd) cleanupTags
@@ -189,13 +189,25 @@ main = do
     ignoreEx :: SomeException -> IO ()
     ignoreEx _ = pure ()
 
-    initWorkerData conf n = do
+    -- If there is only a single capability and multiple available cpus, adjust
+    -- capabilities to half the number of cpus (as usually the other half are
+    -- logical cores that won't increase performance when loaded).
+    getAdjustedCapabilities :: IO Int
+    getAdjustedCapabilities = getNumCapabilities >>= \case
+      1 -> do
+        cpus <- getNumProcessors
+        when (cpus > 1) $ do
+          setNumCapabilities $ cpus `div` 2
+        getNumCapabilities
+      n -> pure n
+
+    initWorkerData conf threads = do
       let wdConfig = case conf of
             "ghc" -> ghcConfig
             _     -> defConfig
       wdTags  <- newMVar =<< readTags SingETag tagsFile
       wdTimes <- newMVar =<< readTimes timesFile
-      wdQueue <- newTBQueueIO (fromIntegral n)
+      wdQueue <- newTBQueueIO (fromIntegral threads)
       pure WorkerData{..}
 
     -- Walk a list of paths recursively and process eligible source files.
