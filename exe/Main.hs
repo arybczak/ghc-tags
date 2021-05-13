@@ -170,10 +170,12 @@ main = do
   wd <- initWorkerData conf n
 
   tg <- TG.new
-  replicateM_ n . TG.forkIO tg $ worker wd
-  processFiles wd =<< if null paths
-                      then listDirectory "."
-                      else pure paths
+  mask $ \restore -> do
+    replicateM_ n . TG.forkIO tg . restore $ worker wd
+    -- If an exception is thrown, stop looking at files and clean up.
+    handle ignoreEx . restore $ processFiles wd =<< if null paths
+                                                    then listDirectory "."
+                                                    else pure paths
   atomically . replicateM_ n $ writeTBQueue (wdQueue wd) Nothing
   TG.wait tg
 
@@ -183,6 +185,9 @@ main = do
   where
     tagsFile = "TAGS"
     timesFile = tagsFile <.> "mtime"
+
+    ignoreEx :: SomeException -> IO ()
+    ignoreEx _ = pure ()
 
     initWorkerData conf n = do
       let wdConfig = case conf of
