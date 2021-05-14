@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.DeepSeq
 import Control.Exception
@@ -17,28 +18,24 @@ import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Data.StringBuffer
-import GHC.Driver.Flags
 import GHC.Driver.Main
 import GHC.Driver.Monad
 import GHC.Driver.Session
 import GHC.Hs
-import GHC.LanguageExtensions
 import GHC.Parser.Lexer
 import GHC.Paths
 import GHC.Platform
-import GHC.Settings
 import GHC.SysTools
 import GHC.Types.SrcLoc
 import GHC.Unit.Module.Env
 import GHC.Utils.Error
 import System.Directory
-import System.Environment
 import System.FilePath
 import System.IO
 import System.IO.Error
-import qualified Control.Concurrent.Thread.Group as TG
 import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -51,143 +48,107 @@ import qualified GHC.Parser as Parser
 import qualified GHC.Utils.Outputable as Out
 
 import GhcTags
+import GhcTags.Config.Project
 import qualified GhcTags.CTag as CTag
 import qualified GhcTags.ETag as ETag
-
-data Config = Config
-  { configLanguage    :: Language
-  , configExtensions  :: [Extension]
-  , configCppIncludes :: [FilePath]
-  , configExcludeDirs :: [FilePath]
-  , configCppOptions  :: [String]
-  }
-
-applyConfig :: Config -> DynFlags -> DynFlags
-applyConfig Config{..} = applyCppOptions . applyCppIncludes . applyExtensions . applyLanguage
-  where
-    applyLanguage fs = lang_set fs (Just configLanguage)
-
-    applyExtensions fs = foldl' xopt_set fs configExtensions
-
-    applyCppIncludes fs =
-      fs { includePaths = addGlobalInclude (includePaths fs) configCppIncludes
-         }
-
-    applyCppOptions fs = foldr addOptP fs configCppOptions
-      where
-        addOptP opt acc =
-          let ts = toolSettings acc
-          in acc { toolSettings = ts { toolSettings_opt_P = opt : toolSettings_opt_P ts } }
-
-defConfig :: Config
-defConfig = Config
-  { configLanguage = Haskell2010
-  , configExtensions = [ BangPatterns
-                       , ExplicitForAll
-                       , LambdaCase
-                       , MultiWayIf
-                       , OverloadedLabels
-                       , TypeApplications
-                       ]
-  , configCppIncludes = []
-  , configCppOptions = [ "-DMIN_VERSION_unordered_containers(x,y,z)=1"
-                       ]
-  , configExcludeDirs = [ "dist"
-                        , "dist-newstyle"
-                        ]
-  }
-
-ghcConfig :: Config
-ghcConfig = Config
-  { configLanguage = Haskell2010
-  , configExtensions = [ BangPatterns
-                       , ExplicitForAll
-                       ]
-  , configCppIncludes = [ "../ghc/compiler"
-                        , "../ghc/compiler/stage1/build"
-                        , "../ghc/includes/dist-derivedconstants/header"
-                        , "../ghc/_build/stage1/compiler/build"
-                        ]
-  , configCppOptions = []
-  , configExcludeDirs = [ "../ghc/compiler/stage1"
-                        , "../ghc/compiler/stage2"
-                        ]
-  }
 
 ----------------------------------------
 
 data Updated a = Updated Bool a
 
 data WorkerData = WorkerData
-  { wdConfig :: Config
-  , wdTags   :: MVar DirtyTags
+  { wdTags   :: MVar DirtyTags
   , wdTimes  :: MVar DirtyModTimes
   , wdQueue  :: TBQueue (Maybe (FilePath, UTCTime))
   }
 
-worker :: WorkerData -> IO ()
-worker WorkerData{..} = runGhc $ do
-  gflags <- applyConfig wdConfig <$> getSessionDynFlags
-  _ <- GHC.setSessionDynFlags gflags
-  env <- getSession
-  liftIO . fix $ \loop -> atomically (readTBQueue wdQueue) >>= \case
-    Nothing -> pure ()
-    Just (file, mtime) -> do
-      --putStrLn $ "Processing " ++ file
-      handle showErr $ DP.preprocess env file Nothing Nothing >>= \case
-        Left errs -> report gflags errs
-        Right (flags, newFile) -> do
-          buffer <- hGetStringBuffer newFile
-          case parseModule file flags buffer of
-            PFailed pstate -> do
-              let (wrns, errs) = getMessages pstate flags
-              report flags wrns
-              report flags errs
-            POk pstate hsModule -> do
-              let (wrns, errs) = getMessages pstate flags
-              report flags wrns
-              report flags errs
-              when (isEmptyBag errs) $ do
-                let path = TagFileName $ T.pack file
-                modifyMVar_ wdTags $ \tags -> do
-                  pure $! updateTagsWith flags hsModule tags
-                modifyMVar_ wdTimes $ \times -> do
-                  pure $! updateTimesWith path mtime times
-      loop
+generateTagsForProject :: Int -> WorkerData -> ProjectConfig -> IO ()
+generateTagsForProject threads wd pc = runConcurrently . F.fold
+  $ Concurrently (processFiles (pcSourcePaths pc) >> terminateWorkers)
+  : replicate threads (Concurrently worker)
   where
-    showErr :: GHC.GhcException -> IO ()
-    showErr = putStrLn . show
+    -- Walk a list of paths recursively and process eligible source files.
+    processFiles :: [String] -> IO ()
+    processFiles = mapM_ $ \rawPath -> do
+      let path = normalise rawPath
+      if path `elem` pcExcludePaths pc
+        then pure ()
+        else doesDirectoryExist path >>= \case
+          True -> do
+            paths <- map (path </>) <$> listDirectory path
+            processFiles paths
+          False -> when (takeExtension path `elem` haskellExtensions) $ do
+            -- Source files are scanned and updated only if their mtime changed or
+            -- it's not on the list.
+            time <- getModificationTime path
+            updateHsFile <- withMVar (wdTimes wd) $ \times -> pure $
+              case TagFileName (T.pack path) `Map.lookup` times of
+                Just (Updated _ oldTime) -> oldTime < time
+                Nothing                  -> True
+            when updateHsFile $ do
+              atomically . writeTBQueue (wdQueue wd) $ Just (path, time)
+      where
+        haskellExtensions = [".hs", ".hs-boot", ".lhs"]
 
-    report flags msgs =
-      sequence_ [ putStrLn $ Out.showSDoc flags msg
-                | msg <- pprErrMsgBagWithLoc msgs
-                ]
+    terminateWorkers :: IO ()
+    terminateWorkers = atomically $ do
+      replicateM_ threads $ writeTBQueue (wdQueue wd) Nothing
+
+    -- Extract tags from a given file and update the TagMap.
+    worker :: IO ()
+    worker = runGhc $ do
+      gflags <- adjustDynFlags pc <$> getSessionDynFlags
+      _ <- GHC.setSessionDynFlags gflags
+      env <- getSession
+      liftIO . fix $ \loop -> atomically (readTBQueue $ wdQueue wd) >>= \case
+        Nothing -> pure ()
+        Just (file, mtime) -> do
+          --putStrLn $ "Processing " ++ file
+          handle showErr $ DP.preprocess env file Nothing Nothing >>= \case
+            Left errs -> report gflags errs
+            Right (flags, newFile) -> do
+              buffer <- hGetStringBuffer newFile
+              case parseModule file flags buffer of
+                PFailed pstate -> do
+                  let (wrns, errs) = getMessages pstate flags
+                  report flags wrns
+                  report flags errs
+                POk pstate hsModule -> do
+                  let (wrns, errs) = getMessages pstate flags
+                  report flags wrns
+                  report flags errs
+                  when (isEmptyBag errs) $ do
+                    let path = TagFileName $ T.pack file
+                    modifyMVar_ (wdTags wd) $ \tags -> do
+                      pure $! updateTagsWith flags hsModule tags
+                    modifyMVar_ (wdTimes wd) $ \times -> do
+                      pure $! updateTimesWith path mtime times
+          loop
+      where
+        showErr :: GHC.GhcException -> IO ()
+        showErr = putStrLn . show
+
+        report :: DynFlags -> Bag ErrMsg -> IO ()
+        report flags msgs =
+          sequence_ [ putStrLn $ Out.showSDoc flags msg
+                    | msg <- pprErrMsgBagWithLoc msgs
+                    ]
 
 main :: IO ()
 main = do
-  (conf : paths) <- getArgs
-  threads <- getAdjustedCapabilities
-  wd <- initWorkerData conf threads
+  pcs <- getProjectConfigs "ghc-tags.yaml"
+  when (not $ null pcs) $ do
+    threads <- getAdjustedCapabilities
+    wd <- initWorkerData threads
 
-  tg <- TG.new
-  mask $ \restore -> do
-    replicateM_ threads . TG.forkIO tg . restore $ worker wd
-    -- If an exception is thrown, stop looking at files and clean up.
-    handle ignoreEx . restore $ processFiles wd =<< if null paths
-                                                    then listDirectory "."
-                                                    else pure paths
-  atomically . replicateM_ threads $ writeTBQueue (wdQueue wd) Nothing
-  TG.wait tg
+    forM_ pcs $ generateTagsForProject threads wd
 
-  cleanTagMap <- withMVar (wdTags wd) cleanupTags
-  writeTags tagsFile cleanTagMap
-  withMVar (wdTimes wd) $ writeTimes timesFile <=< cleanupTimes cleanTagMap
+    cleanTagMap <- withMVar (wdTags wd) cleanupTags
+    writeTags tagsFile cleanTagMap
+    withMVar (wdTimes wd) $ writeTimes timesFile <=< cleanupTimes cleanTagMap
   where
     tagsFile = "TAGS"
     timesFile = tagsFile <.> "mtime"
-
-    ignoreEx :: SomeException -> IO ()
-    ignoreEx _ = pure ()
 
     -- If there is only a single capability and multiple available cpus, adjust
     -- capabilities to half the number of cpus (as usually the other half are
@@ -201,36 +162,12 @@ main = do
         getNumCapabilities
       n -> pure n
 
-    initWorkerData conf threads = do
-      let wdConfig = case conf of
-            "ghc" -> ghcConfig
-            _     -> defConfig
+    initWorkerData :: Int -> IO WorkerData
+    initWorkerData threads = do
       wdTags  <- newMVar =<< readTags SingETag tagsFile
       wdTimes <- newMVar =<< readTimes timesFile
       wdQueue <- newTBQueueIO (fromIntegral threads)
       pure WorkerData{..}
-
-    -- Walk a list of paths recursively and process eligible source files.
-    processFiles :: WorkerData -> [String] -> IO ()
-    processFiles wd@WorkerData{..} = mapM_ $ \path ->
-      if path `elem` configExcludeDirs wdConfig
-      then pure ()
-      else doesDirectoryExist path >>= \case
-        True -> do
-          paths <- map (path </>) <$> listDirectory path
-          processFiles wd paths
-        False -> when (takeExtension path `elem` haskellExtensions) $ do
-          -- Source files are scanned and updated only if their mtime changed or
-          -- it's not on the list.
-          time <- getModificationTime path
-          updateHsFile <- withMVar wdTimes $ \times -> pure $
-            case TagFileName (T.pack path) `Map.lookup` times of
-              Just (Updated _ oldTime) -> oldTime < time
-              Nothing                  -> True
-          when updateHsFile $ do
-            atomically . writeTBQueue wdQueue $ Just (path, time)
-
-    haskellExtensions = [".hs", ".hs-boot", ".lhs"]
 
 ----------------------------------------
 

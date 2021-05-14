@@ -28,6 +28,8 @@ common build-stanza
      build-depends:    ghc-lib == 9.0.*
 
   build-depends:       base <5
+                     , aeson
+                     , async
                      , attoparsec
                      , bytestring
                      , containers
@@ -37,9 +39,10 @@ common build-stanza
                      , ghc-paths
                      , stm
                      , text
-                     , threads
                      , time
+                     , unordered-containers
                      , vector
+                     , yaml
 
   default-language:    Haskell2010
   default-extensions:  BangPatterns
@@ -64,6 +67,7 @@ library
   hs-source-dirs:      src
 
   exposed-modules:     GhcTags
+                       GhcTags.Config.Project
                        GhcTags.Ghc
                        GhcTags.Tag
                        GhcTags.CTag
