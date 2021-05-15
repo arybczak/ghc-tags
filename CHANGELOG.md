@@ -1,5 +1,2 @@
-# Revision history for ghc-tags
-
-## 0.1.0.0 -- YYYY-mm-dd
-
-* First version. Released on an unsuspecting world.
+# ghc-tags-1.0 (2021-05-??)
+* Initial release.
