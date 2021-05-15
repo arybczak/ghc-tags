@@ -2,8 +2,8 @@
 
 [![Build Status](https://github.com/arybczak/ghc-tags/workflows/Haskell-CI/badge.svg?branch=master)](https://github.com/arybczak/ghc-tags/actions?query=branch%3Amaster)
 
-Generate etags (Emacs) or ctags (Vim and other editors) for efficient code
-navigation (jump to definition).
+A command line tool that generates etags (Emacs) or ctags (Vim and other
+editors) for efficient code navigation (jump to definition).
 
 Main features:
 * Leverages GHC API to obtain accurate information.
