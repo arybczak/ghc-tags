@@ -13,8 +13,8 @@ Main features:
 ## Usage
 
 For simple projects, i.e. the ones that don't use C pre-processor in non-trivial
-ways nor include any C sources it should be enough to execute `ghc-tags -e` or
-`ghc-tags -c` in the root directory of the project.
+ways nor include any C sources it should be enough to execute `ghc-tags -e` (for
+etags) or `ghc-tags -c` (for ctags) in the root directory of the project.
 
 For more complicated projects you need to create the configuration file
 (`ghc-tags.yaml` by default). It can contain the following keys:
