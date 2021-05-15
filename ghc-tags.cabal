@@ -19,10 +19,15 @@ source-repository head
   type:     git
   location: https://github.com/arybczak/ghc-tags
 
+flag ghc-lib
+  default: False
+  manual:  True
+  description: Use ghc-lib even when compiling with compatible GHC version.
+
 common build-stanza
   ghc-options:         -Wall
 
-  if impl(ghc == 9.0.*)
+  if !flag(ghc-lib) && impl(ghc == 9.0.*)
      build-depends:    ghc, ghc-boot
   else
      build-depends:    ghc-lib == 9.0.*
