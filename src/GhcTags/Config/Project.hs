@@ -30,7 +30,8 @@ defaultProjectConfig :: ProjectConfig
 defaultProjectConfig = ProjectConfig
   { pcSourcePaths  = [ "."
                      ]
-  , pcExcludePaths = [ "dist"
+  , pcExcludePaths = [ ".stack-work"
+                     , "dist"
                      , "dist-newstyle"
                      ]
   , pcLanguage     = Haskell2010
@@ -54,8 +55,8 @@ getProjectConfigs file = doesFileExist file >>= \case
     Right pcs -> pure pcs
   False -> pure [defaultProjectConfig]
 
-ppProjectConfig :: ProjectConfig -> BS.ByteString
-ppProjectConfig = Y.encodePretty conf
+ppProjectConfig :: ProjectConfig -> String
+ppProjectConfig = BS.unpack . Y.encodePretty conf
   where
     conf = Y.setConfCompare (keyOrder projectConfigKeys) Y.defConfig
 

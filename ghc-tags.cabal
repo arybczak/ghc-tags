@@ -38,6 +38,7 @@ common build-stanza
                      , filepath
                      , ghc-paths
                      , stm
+                     , optparse-applicative
                      , text
                      , time
                      , unordered-containers
@@ -67,6 +68,7 @@ library
   hs-source-dirs:      src
 
   exposed-modules:     GhcTags
+                       GhcTags.Config.Args
                        GhcTags.Config.Project
                        GhcTags.Ghc
                        GhcTags.Tag
@@ -79,6 +81,8 @@ library
                        GhcTags.ETag.Parser
                        GhcTags.ETag.Formatter
                        GhcTags.Utils
+
+  other-modules:       Paths_ghc_tags
 
 executable ghc-tags
     import: build-stanza

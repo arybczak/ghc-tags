@@ -30,6 +30,7 @@ import GHC.Types.SrcLoc
 import GHC.Unit.Module.Env
 import GHC.Utils.Error
 import System.Directory
+import System.Environment
 import System.FilePath
 import System.IO
 import System.IO.Error
@@ -48,6 +49,7 @@ import qualified GHC.Parser as Parser
 import qualified GHC.Utils.Outputable as Out
 
 import GhcTags
+import GhcTags.Config.Args
 import GhcTags.Config.Project
 import qualified GhcTags.CTag as CTag
 import qualified GhcTags.ETag as ETag
@@ -136,36 +138,35 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
 
 main :: IO ()
 main = do
-  pcs <- getProjectConfigs "ghc-tags.yaml"
-  when (not $ null pcs) $ do
-    threads <- getAdjustedCapabilities
-    wd <- initWorkerData threads
+  -- The default number of threads is half the number of CPU cores as usually
+  -- the other half are logical cores that don't increase performance when
+  -- loaded (or even decrease it in case of high core count, e.g. Ryzen 5950x).
+  defaultThreads <- max 1 . (`div` 2) <$> getNumProcessors
 
-    forM_ pcs $ generateTagsForProject threads wd
+  args <- parseArgs defaultThreads =<< getArgs
+
+  pcs <- case aSourcePaths args of
+    SourceArgs paths      -> pure [defaultProjectConfig { pcSourcePaths = paths }]
+    ConfigFile configFile -> getProjectConfigs configFile
+
+  when (not $ null pcs) $ do
+    setNumCapabilities (aThreads args)
+    wd <- initWorkerData args (aThreads args)
+
+    forM_ pcs $ generateTagsForProject (aThreads args) wd
 
     cleanTagMap <- withMVar (wdTags wd) cleanupTags
-    writeTags tagsFile cleanTagMap
-    withMVar (wdTimes wd) $ writeTimes timesFile <=< cleanupTimes cleanTagMap
+    writeTags (aTagFile args) cleanTagMap
+    withMVar (wdTimes wd) $ writeTimes (timesFile args) <=< cleanupTimes cleanTagMap
   where
-    tagsFile = "TAGS"
-    timesFile = tagsFile <.> "mtime"
+    timesFile args = aTagFile args <.> "mtime"
 
-    -- If there is only a single capability and multiple available cpus, adjust
-    -- capabilities to half the number of cpus (as usually the other half are
-    -- logical cores that won't increase performance when loaded).
-    getAdjustedCapabilities :: IO Int
-    getAdjustedCapabilities = getNumCapabilities >>= \case
-      1 -> do
-        cpus <- getNumProcessors
-        when (cpus > 1) $ do
-          setNumCapabilities $ cpus `div` 2
-        getNumCapabilities
-      n -> pure n
-
-    initWorkerData :: Int -> IO WorkerData
-    initWorkerData threads = do
-      wdTags  <- newMVar =<< readTags SingETag tagsFile
-      wdTimes <- newMVar =<< readTimes timesFile
+    initWorkerData :: Args -> Int -> IO WorkerData
+    initWorkerData args threads = do
+      wdTags  <- newMVar =<< case aTagType args of
+        ETags -> readTags SingETag (aTagFile args)
+        CTags -> readTags SingCTag (aTagFile args)
+      wdTimes <- newMVar =<< readTimes (timesFile args)
       wdQueue <- newTBQueueIO (fromIntegral threads)
       pure WorkerData{..}
 
