@@ -47,8 +47,7 @@ data GhcTagKind
     | GtkTypeClassMember               (HsType GhcPs)
     | GtkTypeClassInstance             (HsType GhcPs)
     | GtkTypeFamily             (Maybe ([HsTyVarBndr () GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
-    -- ghc-8.6.5 does not provide 'TyFamInstDecl' for assicated type families
-    | GtkTypeFamilyInstance     (Maybe (TyFamInstDecl GhcPs))
+    | GtkTypeFamilyInstance     (TyFamInstDecl GhcPs)
     | GtkDataTypeFamily         (Maybe ([HsTyVarBndr () GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
     | GtkDataTypeFamilyInstance (Maybe (HsKind GhcPs))
     | GtkForeignImport
@@ -272,8 +271,7 @@ hsDeclsToGhcTags mies = foldr go []
             -- associated type defaults (data type families, type families
             -- (open or closed)
             ++ foldr
-                (\(L _ decl'@(TyFamInstDecl (HsIB { hsib_body = tyFamDeflEqn }))) tags' ->
-                  let decl = Just decl' in
+                (\(L _ decl@(TyFamInstDecl (HsIB { hsib_body = tyFamDeflEqn }))) tags' ->
                     case tyFamDeflEqn of
                       FamEqn { feqn_rhs = L _ hsType } ->
                         case hsTypeTagName hsType of
@@ -544,7 +542,7 @@ hsDeclsToGhcTags mies = foldr go []
       case tfid_eqn of
         -- TODO: should we check @feqn_rhs :: LHsType GhcPs@ as well?
         HsIB { hsib_body = FamEqn { feqn_tycon } } ->
-          Just $ mkGhcTag' decLoc feqn_tycon (GtkTypeFamilyInstance (Just decl))
+          Just $ mkGhcTag' decLoc feqn_tycon (GtkTypeFamilyInstance decl)
 
 --
 --
