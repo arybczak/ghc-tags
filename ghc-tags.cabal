@@ -1,8 +1,9 @@
 cabal-version:       2.4
 name:                ghc-tags
-version:             0.1
-synopsis:            Utility for generating a list of tags
-description:         Utility for generating a list of tags for a project
+version:             1.0
+synopsis:            Utility for generating ctags and etags with GHC API.
+description:         Utility for generating etags (Emacs) and ctags (Vim and other
+                     editors) with GHC API for efficient project navigation.
 license:             MPL-2.0
 license-file:        LICENSE
 author:              Andrzej Rybczak
