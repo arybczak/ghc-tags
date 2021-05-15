@@ -82,6 +82,7 @@ library
                        GhcTags.ETag.Formatter
                        GhcTags.Utils
 
+  autogen-modules:     Paths_ghc_tags
   other-modules:       Paths_ghc_tags
 
 executable ghc-tags
