@@ -10,6 +10,13 @@ Main features:
 * Uses multiple CPU cores when processing source files.
 * Supports fast incremental updates.
 
+Supported file extensions:
+* `.hs`
+* `.hs-boot`
+* `.lhs`
+* `.x` (requires `alex`)
+* `.hsc` (requires `hsc2hs`)
+
 ## Usage
 
 For simple projects, i.e. the ones that don't use C pre-processor in non-trivial
