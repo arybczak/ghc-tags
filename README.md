@@ -31,8 +31,7 @@ For more complicated projects you need to create the configuration file
   undefined `MIN_VERSION_x` macros will go here).
 
 If any of these keys is not specified, an appropriate default value will be
-picked instead. You can inspect the defaults by executing `ghc-tags
---default-config`.
+picked instead. You can inspect the defaults by executing `ghc-tags --default`.
 
 **Note:** it is possible to specify multiple project configurations in the
 configuration file by separating them with `---`. For example, here is a
@@ -43,10 +42,9 @@ source_paths:
 - compiler
 
 cpp_includes:
-- compiler
-- compiler/stage1/build
-- includes/dist-derivedconstants/header
 - _build/stage1/compiler/build
+- compiler
+- includes/dist-derivedconstants/header
 
 ---
 
@@ -57,6 +55,8 @@ exclude_paths:
 - libraries/base/tests
 
 cpp_includes:
+- _build/stage1/libraries/base/build/include
+- includes
 - libraries/base/include
 ```
 

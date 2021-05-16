@@ -3,7 +3,6 @@ module GhcTags.Config.Args where
 
 import Data.Version
 import Options.Applicative
-import Options.Applicative.Help.Pretty
 
 import GhcTags.Config.Project
 import Paths_ghc_tags (version)
@@ -44,12 +43,12 @@ argsParser defaultThreads = do
     ctags :: Parser TagType
     ctags = flag' CTags $ long "ctags"
                        <> short 'c'
-                       <> help "Generate CTAGS file"
+                       <> help "Generate ctags"
 
     etags :: Parser TagType
     etags = flag' ETags $ long "etags"
                        <> short 'e'
-                       <> help "Generate ETAGS file"
+                       <> help "Generate etags"
 
     tagFile :: Parser FilePath
     tagFile = strOption $ long "output"
@@ -82,13 +81,10 @@ parseArgs defaultThreads = handleParseResult . execParserPure defaultPrefs opts
   where
     opts = info
       (argsParser defaultThreads <**> defaultConfigFlag <**> versionFlag <**> helper)
-      (fullDesc <> progDescDoc (Just $ line <> configHint))
-
-    configHint =
-      text "If the given configuration file doesn't exist, a default one is used."
+      fullDesc
 
     defaultConfigFlag = infoOption (ppProjectConfig defaultProjectConfig)
-       $ long "default-config"
+       $ long "default"
       <> help "Show a default configuration file"
 
     versionFlag = infoOption (showVersion version)
