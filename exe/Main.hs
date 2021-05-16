@@ -21,6 +21,7 @@ import GHC.Data.StringBuffer
 import GHC.Driver.Main
 import GHC.Driver.Monad
 import GHC.Driver.Session
+import GHC.Driver.Types (HscEnv(..))
 import GHC.Hs
 import GHC.Parser.Lexer
 import GHC.Paths
@@ -31,9 +32,12 @@ import GHC.Unit.Module.Env
 import GHC.Utils.Error
 import System.Directory
 import System.Environment
+import System.Exit
 import System.FilePath
 import System.IO
 import System.IO.Error
+import System.IO.Temp
+import System.Process
 import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Foldable as F
@@ -58,10 +62,12 @@ import qualified GhcTags.ETag as ETag
 
 data Updated a = Updated Bool a
 
+data HsFileType = HsFile | HsBootFile | LHsFile | AlexFile | HscFile
+
 data WorkerData = WorkerData
   { wdTags   :: MVar DirtyTags
   , wdTimes  :: MVar DirtyModTimes
-  , wdQueue  :: TBQueue (Maybe (FilePath, UTCTime))
+  , wdQueue  :: TBQueue (Maybe (FilePath, HsFileType, UTCTime))
   }
 
 generateTagsForProject :: Int -> WorkerData -> ProjectConfig -> IO ()
@@ -71,26 +77,30 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
   where
     -- Walk a list of paths recursively and process eligible source files.
     processFiles :: [String] -> IO ()
-    processFiles = mapM_ $ \rawPath -> do
-      let path = normalise rawPath
-      if path `elem` pcExcludePaths pc
-        then pure ()
-        else doesDirectoryExist path >>= \case
+    processFiles = mapM_ $ \origPath -> do
+      let path = normalise origPath
+      unless (path `elem` pcExcludePaths pc) $ do
+        doesDirectoryExist path >>= \case
           True -> do
             paths <- map (path </>) <$> listDirectory path
             processFiles paths
-          False -> when (takeExtension path `elem` haskellExtensions) $ do
+          False -> F.forM_ (takeExtension path `lookup` haskellExts) $ \hsType -> do
             -- Source files are scanned and updated only if their mtime changed or
-            -- it's not on the list.
+            -- it's not recorded.
             time <- getModificationTime path
-            updateHsFile <- withMVar (wdTimes wd) $ \times -> pure $
+            updateTags <- withMVar (wdTimes wd) $ \times -> pure $
               case TagFileName (T.pack path) `Map.lookup` times of
                 Just (Updated _ oldTime) -> oldTime < time
                 Nothing                  -> True
-            when updateHsFile $ do
-              atomically . writeTBQueue (wdQueue wd) $ Just (path, time)
+            when updateTags $ do
+              atomically . writeTBQueue (wdQueue wd) $ Just (path, hsType, time)
       where
-        haskellExtensions = [".hs", ".hs-boot", ".lhs"]
+        haskellExts = [ (".hs",      HsFile)
+                      , (".hs-boot", HsBootFile)
+                      , (".lhs",     LHsFile)
+                      , (".x",       AlexFile)
+                      , (".hsc",     HscFile)
+                      ]
 
     terminateWorkers :: IO ()
     terminateWorkers = atomically $ do
@@ -99,17 +109,20 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
     -- Extract tags from a given file and update the TagMap.
     worker :: IO ()
     worker = runGhc $ do
-      gflags <- adjustDynFlags pc <$> getSessionDynFlags
-      _ <- GHC.setSessionDynFlags gflags
+      void $ GHC.setSessionDynFlags . adjustDynFlags pc =<< getSessionDynFlags
       env <- getSession
       liftIO . fix $ \loop -> atomically (readTBQueue $ wdQueue wd) >>= \case
-        Nothing -> pure ()
-        Just (file, mtime) -> do
-          --putStrLn $ "Processing " ++ file
-          handle showErr $ DP.preprocess env file Nothing Nothing >>= \case
-            Left errs -> report gflags errs
-            Right (flags, newFile) -> do
-              buffer <- hGetStringBuffer newFile
+        Nothing                    -> pure ()
+        Just (file, hsType, mtime) -> processFile env file hsType mtime >> loop
+      where
+        processFile :: HscEnv -> FilePath -> HsFileType -> UTCTime -> IO ()
+        processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
+          handle showErr $ DP.preprocess env hsFile Nothing Nothing >>= \case
+            Left errs -> report (hsc_dflags env) errs
+            Right (flags, file) -> do
+              --when (file /= rawFile) $ do
+              --  putStrLn $ "Processing " ++ file ++ " (" ++ rawFile ++ ")"
+              buffer <- hGetStringBuffer file
               case parseModule file flags buffer of
                 PFailed pstate -> do
                   let (wrns, errs) = getMessages pstate flags
@@ -120,21 +133,41 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
                   report flags wrns
                   report flags errs
                   when (isEmptyBag errs) $ do
-                    let path = TagFileName $ T.pack file
                     modifyMVar_ (wdTags wd) $ \tags -> do
                       pure $! updateTagsWith flags hsModule tags
                     modifyMVar_ (wdTimes wd) $ \times -> do
+                      let path = TagFileName $ T.pack rawFile
                       pure $! updateTimesWith path mtime times
-          loop
-      where
-        showErr :: GHC.GhcException -> IO ()
-        showErr = putStrLn . show
+          where
+            showErr :: GHC.GhcException -> IO ()
+            showErr = putStrLn . show
 
-        report :: DynFlags -> Bag ErrMsg -> IO ()
-        report flags msgs =
-          sequence_ [ putStrLn $ Out.showSDoc flags msg
-                    | msg <- pprErrMsgBagWithLoc msgs
-                    ]
+            report :: DynFlags -> Bag ErrMsg -> IO ()
+            report flags msgs =
+              sequence_ [ putStrLn $ Out.showSDoc flags msg
+                        | msg <- pprErrMsgBagWithLoc msgs
+                        ]
+
+        -- Alex and Hsc files need to be preprocessed before going into GHC.
+        withHsFile :: FilePath -> HsFileType -> (FilePath -> IO ()) -> IO ()
+        withHsFile file hsType k = case hsType of
+          AlexFile -> preprocessWith "alex" []
+          HscFile  -> preprocessWith "hsc2hs" $ map ("-I" ++) (pcCppIncludes pc)
+                                   ++ filter ("-D" `isPrefixOf`) (pcCppOptions pc)
+          _        -> k file
+          where
+            preprocessWith :: FilePath -> [FilePath] -> IO ()
+            preprocessWith prog args = withSystemTempDirectory "ghc-tags" $ \dir -> do
+              let tmpFile = dir </> "out.hs"
+              (ec, out, err) <- readProcessWithExitCode prog
+                ([file, "-o", tmpFile] ++ args) ""
+              case ec of
+                ExitSuccess      -> k tmpFile
+                ExitFailure code -> do
+                  putStrLn $ "Preprocessing " ++ file ++ " with " ++ prog
+                          ++ " failed with exit code " ++ show code
+                  unless (null out) . putStrLn $ "* STDOUT: " ++ out
+                  unless (null err) . putStrLn $ "* STDERR: " ++ err
 
 main :: IO ()
 main = do
@@ -276,19 +309,19 @@ updateTagsWith dflags hsModule DirtyTags{..} =
 
 cleanupTags :: DirtyTags -> IO Tags
 cleanupTags DirtyTags{..} = do
-  newTags <- (`Map.traverseMaybeWithKey` dtTags) $ \file -> \case
-    Updated updated tags
-      | updated -> do
-          let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
-          case dtKind of
-            SingCTag -> pure $ Just cleanedTags
-            SingETag -> addFileOffsets file cleanedTags
-      | otherwise -> do
-          let path = T.unpack $ getTagFileName file
-          --putStrLn $ "Checking " ++ path
-          doesFileExist path >>= \case
-            True  -> pure $ Just tags
-            False -> pure Nothing
+  newTags <- (`Map.traverseMaybeWithKey` dtTags) $ \file (Updated updated tags) -> do
+    let path = T.unpack $ getTagFileName file
+    -- The file might not exists even though it was updated, e.g. when .x files
+    -- are preprocessed as temporary files, some tags from them might make it
+    -- here.
+    exists <- doesFileExist path
+    if | exists && updated -> do
+           let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
+           case dtKind of
+             SingCTag -> pure $ Just cleanedTags
+             SingETag -> addFileOffsets file cleanedTags
+       | exists && not updated -> pure $ Just tags
+       | otherwise -> pure Nothing
   newTags `deepseq` pure Tags { tKind = dtKind
                               , tHeaders = dtHeaders
                               , tTags = newTags

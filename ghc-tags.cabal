@@ -45,6 +45,8 @@ common build-stanza
                      , ghc-paths
                      , stm
                      , optparse-applicative
+                     , process
+                     , temporary
                      , text
                      , time
                      , unordered-containers
