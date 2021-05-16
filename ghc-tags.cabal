@@ -8,7 +8,7 @@ license:             MPL-2.0
 license-file:        LICENSE
 author:              Andrzej Rybczak
 maintainer:          andrzej@rybczak.net
-copyright:           (c) 2020, Andrzej Rybczak
+copyright:           (c) 2021, Andrzej Rybczak
 category:            Development
 extra-source-files:  CHANGELOG.md
                      README.md
@@ -25,8 +25,8 @@ flag ghc-lib
   manual:  True
   description: Use ghc-lib even when compiling with compatible GHC version.
 
-common build-stanza
-  ghc-options:         -Wall
+executable ghc-tags
+  ghc-options:         -Wall -threaded -rtsopts
 
   if !flag(ghc-lib) && impl(ghc == 9.0.*)
      build-depends:    ghc, ghc-boot
@@ -53,6 +53,28 @@ common build-stanza
                      , vector
                      , yaml
 
+  hs-source-dirs:      src
+
+  main-is:             Main.hs
+
+  other-modules:       GhcTags
+                       GhcTags.Config.Args
+                       GhcTags.Config.Project
+                       GhcTags.Ghc
+                       GhcTags.Tag
+                       GhcTags.CTag
+                       GhcTags.CTag.Header
+                       GhcTags.CTag.Parser
+                       GhcTags.CTag.Formatter
+                       GhcTags.CTag.Utils
+                       GhcTags.ETag
+                       GhcTags.ETag.Parser
+                       GhcTags.ETag.Formatter
+                       GhcTags.Utils
+                       Paths_ghc_tags
+
+  autogen-modules:     Paths_ghc_tags
+
   default-language:    Haskell2010
   default-extensions:  BangPatterns
                      , DataKinds
@@ -69,36 +91,3 @@ common build-stanza
                      , StrictData
                      , StandaloneDeriving
                      , TupleSections
-
-library
-  import: build-stanza
-
-  hs-source-dirs:      src
-
-  exposed-modules:     GhcTags
-                       GhcTags.Config.Args
-                       GhcTags.Config.Project
-                       GhcTags.Ghc
-                       GhcTags.Tag
-                       GhcTags.CTag
-                       GhcTags.CTag.Header
-                       GhcTags.CTag.Parser
-                       GhcTags.CTag.Formatter
-                       GhcTags.CTag.Utils
-                       GhcTags.ETag
-                       GhcTags.ETag.Parser
-                       GhcTags.ETag.Formatter
-                       GhcTags.Utils
-
-  autogen-modules:     Paths_ghc_tags
-  other-modules:       Paths_ghc_tags
-
-executable ghc-tags
-    import: build-stanza
-
-    ghc-options:       -threaded -rtsopts
-
-    build-depends:     ghc-tags
-
-    hs-source-dirs:    exe
-    main-is:           Main.hs
