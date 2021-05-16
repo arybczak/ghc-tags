@@ -42,7 +42,7 @@ picked instead. You can inspect the defaults by executing `ghc-tags --default`.
 
 **Note:** it is possible to specify multiple project configurations in the
 configuration file by separating them with `---`. For example, here is a
-configuration for GHC (compiler + base):
+configuration for GHC on Linux (compiler, utils and base):
 
 ```yaml
 source_paths:
@@ -59,12 +59,43 @@ source_paths:
 - libraries/base
 
 exclude_paths:
+- libraries/base/GHC/Conc/POSIX/Const.hsc
+- libraries/base/GHC/Event/Windows.hsc
+- libraries/base/GHC/Event/Windows/ConsoleEvent.hsc
+- libraries/base/GHC/Event/Windows/FFI.hsc
+- libraries/base/GHC/IO/Windows/Handle.hsc
+- libraries/base/System/CPUTime/Windows.hsc
 - libraries/base/tests
 
 cpp_includes:
 - _build/stage1/libraries/base/build/include
 - includes
 - libraries/base/include
+
+---
+
+source_paths:
+- libraries/ghc-bignum
+
+exclude_paths:
+- libraries/ghc-bignum/src/GHC/Num/Backend/Selected.hs
+
+cpp_includes:
+- libraries/ghc-bignum/include
+
+---
+
+source_paths:
+- libraries/ghc-boot
+- libraries/ghc-boot-th
+- libraries/ghc-compact
+- libraries/ghc-heap
+- libraries/ghc-prim
+
+exclude_paths:
+- libraries/ghc-compact/tests
+- libraries/ghc-heap/tests
+- libraries/ghc-prim/tests
 ```
 
 ## Acknowledgments
