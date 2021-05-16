@@ -55,6 +55,7 @@ import qualified GHC.Utils.Outputable as Out
 import GhcTags
 import GhcTags.Config.Args
 import GhcTags.Config.Project
+import GhcTags.CTag.Header
 import qualified GhcTags.CTag as CTag
 import qualified GhcTags.ETag as ETag
 
@@ -383,8 +384,13 @@ writeTags tagsFile Tags{..} = withFile tagsFile WriteMode $ \h ->
   BS.hPutBuilder h $ case tKind of
     SingETag -> (`Map.foldMapWithKey` tTags) $ \path ->
       ETag.formatTagsFile path . sortBy ETag.compareTags
-    SingCTag -> CTag.formatTagsFile tHeaders $
+    SingCTag -> CTag.formatTagsFile headers $
       Map.map (sortBy CTag.compareTags) tTags
+  where
+    headers :: [Header]
+    headers = if null tHeaders
+              then defaultHeaders
+              else tHeaders
 
 ----------------------------------------
 

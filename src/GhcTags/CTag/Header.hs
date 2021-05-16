@@ -6,6 +6,7 @@
 
 module GhcTags.CTag.Header
   ( Header (..)
+  , defaultHeaders
   , HeaderType (..)
   , SomeHeaderType (..)
   -- * Utils
@@ -13,17 +14,19 @@ module GhcTags.CTag.Header
   , headerTypeSing
   ) where
 
-import           Data.Text (Text)
+import Data.Version
+import qualified Data.Text as T
 
+import Paths_ghc_tags (version)
 
 -- | A type safe representation of a /ctag/ header.
 --
 data Header where
     Header :: forall ty. Show ty =>
               { headerType     :: HeaderType ty
-              , headerLanguage :: Maybe Text
+              , headerLanguage :: Maybe T.Text
               , headerArg      :: ty
-              , headerComment  :: Text
+              , headerComment  :: T.Text
               }
             -> Header
 
@@ -100,20 +103,20 @@ deriving instance Show Header
 -- | Enumeration of header type and values of their corresponding argument
 --
 data HeaderType ty where
-    FileEncoding      :: HeaderType Text
+    FileEncoding      :: HeaderType T.Text
     FileFormat        :: HeaderType Int
     FileSorted        :: HeaderType Int
-    OutputMode        :: HeaderType Text
-    KindDescription   :: HeaderType Text
-    KindSeparator     :: HeaderType Text
-    ProgramAuthor     :: HeaderType Text
-    ProgramName       :: HeaderType Text
-    ProgramUrl        :: HeaderType Text
-    ProgramVersion    :: HeaderType Text
+    OutputMode        :: HeaderType T.Text
+    KindDescription   :: HeaderType T.Text
+    KindSeparator     :: HeaderType T.Text
+    ProgramAuthor     :: HeaderType T.Text
+    ProgramName       :: HeaderType T.Text
+    ProgramUrl        :: HeaderType T.Text
+    ProgramVersion    :: HeaderType T.Text
 
-    ExtraDescription  :: HeaderType Text
-    FieldDescription  :: HeaderType Text
-    PseudoTag         :: Text -> HeaderType Text
+    ExtraDescription  :: HeaderType T.Text
+    FieldDescription  :: HeaderType T.Text
+    PseudoTag         :: T.Text -> HeaderType T.Text
 
 deriving instance Eq (HeaderType ty)
 deriving instance Ord (HeaderType ty)
@@ -128,7 +131,7 @@ data SomeHeaderType where
 -- | Singletons which makes it easier to work with 'HeaderType'
 --
 data SingHeaderType ty where
-    SingHeaderTypeText :: SingHeaderType Text
+    SingHeaderTypeText :: SingHeaderType T.Text
     SingHeaderTypeInt  :: SingHeaderType Int
 
 
@@ -148,3 +151,42 @@ headerTypeSing = \case
     ExtraDescription -> SingHeaderTypeText
     FieldDescription -> SingHeaderTypeText
     PseudoTag {}     -> SingHeaderTypeText
+
+----------------------------------------
+
+defaultHeaders :: [Header]
+defaultHeaders =
+  [ Header FileFormat     Nothing 2 ""
+  , Header FileSorted     Nothing 1 ""
+  , Header FileEncoding   Nothing "utf-8" ""
+  , Header ProgramName    Nothing "ghc-tags" ""
+  , Header ProgramUrl     Nothing "https://hackage.haskell.org/package/ghc-tags" ""
+  , Header ProgramVersion Nothing (T.pack $ showVersion version) ""
+
+  , Header FieldDescription haskellLang "type" "type of expression"
+  , Header FieldDescription haskellLang "ffi"  "foreign object name"
+  , Header FieldDescription haskellLang "file" "not exported term"
+  , Header FieldDescription haskellLang "instance" "class, type or data type instance"
+  , Header FieldDescription haskellLang "Kind" "kind of a type"
+
+  , Header KindDescription haskellLang "`" "module top level term, but not a function"
+  , Header KindDescription haskellLang "λ" "module top level function term"
+  , Header KindDescription haskellLang "Λ" "type constructor"
+  , Header KindDescription haskellLang "c" "data constructor"
+  , Header KindDescription haskellLang "g" "gadt constructor"
+  , Header KindDescription haskellLang "r" "record field"
+  , Header KindDescription haskellLang "≡" "type synonym"
+  , Header KindDescription haskellLang "~" "type signature"
+  , Header KindDescription haskellLang "p" "pattern synonym"
+  , Header KindDescription haskellLang "C" "type class"
+  , Header KindDescription haskellLang "m" "type class member"
+  , Header KindDescription haskellLang "i" "type class instance"
+  , Header KindDescription haskellLang "F" "type family"
+  , Header KindDescription haskellLang "f" "type family instance"
+  , Header KindDescription haskellLang "D" "data type family"
+  , Header KindDescription haskellLang "d" "data type family instance"
+  , Header KindDescription haskellLang "I" "foreign import"
+  , Header KindDescription haskellLang "E" "foreign export"
+  ]
+  where
+    haskellLang = Just "Haskell"
