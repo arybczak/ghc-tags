@@ -184,10 +184,11 @@ main = do
     ConfigFile configFile -> getProjectConfigs configFile
 
   when (not $ null pcs) $ do
-    setNumCapabilities (aThreads args)
     wd <- initWorkerData args (aThreads args)
 
+    setNumCapabilities (aThreads args)
     forM_ pcs $ generateTagsForProject (aThreads args) wd
+    setNumCapabilities 1
 
     cleanTagMap <- withMVar (wdTags wd) cleanupTags
     writeTags (aTagFile args) cleanTagMap
