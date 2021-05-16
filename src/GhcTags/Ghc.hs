@@ -435,27 +435,31 @@ hsDeclsToGhcTags mies = foldr go []
 
     mkClsMemberTags :: SrcSpan -> Located RdrName -> Sig GhcPs -> [GhcTag]
     mkClsMemberTags decLoc clsName (TypeSig   _ lhs hsSigWcType) =
-      (\n -> mkGhcTagForMember decLoc n clsName (GtkTypeSignature hsSigWcType))
-      `map` lhs
-    mkClsMemberTags decLoc clsName (PatSynSig _ lhs _) =
-      (\n -> mkGhcTagForMember decLoc n clsName GtkPatternSynonym)
-      `map` lhs
+      (\n -> mkGhcTagForMember decLoc n clsName (GtkTypeSignature hsSigWcType)) `map` lhs
+    mkClsMemberTags decLoc clsName (PatSynSig _ lhs hsSigWcType) =
+      (\n -> mkGhcTagForMember decLoc n clsName $
+        GtkTypeSignature HsWC { hswc_ext = NoExtField
+                              , hswc_body = hsSigWcType
+                              }) `map` lhs
     mkClsMemberTags decLoc clsName (ClassOpSig _ _ lhs hsSigWcType) =
-      (\n ->  mkGhcTagForMember decLoc n clsName (GtkTypeSignature HsWC { hswc_ext = NoExtField, hswc_body = hsSigWcType }))
-      `map` lhs
+      (\n ->  mkGhcTagForMember decLoc n clsName $
+        GtkTypeSignature HsWC { hswc_ext = NoExtField
+                              , hswc_body = hsSigWcType
+                              }) `map` lhs
     mkClsMemberTags _ _ _ = []
 
 
     mkSigTags :: SrcSpan -> Sig GhcPs -> [GhcTag]
-    mkSigTags decLoc (TypeSig   _ lhs hsSigWcType)
-                                       = flip (mkGhcTag' decLoc) (GtkTypeSignature hsSigWcType)
-                                         `map` lhs
-    mkSigTags decLoc (PatSynSig _ lhs _)
-                                       = flip (mkGhcTag' decLoc) GtkPatternSynonym
-                                         `map` lhs
-    mkSigTags decLoc (ClassOpSig _ _ lhs hsSigWcType)
-                                       = flip (mkGhcTag' decLoc) (GtkTypeSignature HsWC { hswc_ext = NoExtField, hswc_body = hsSigWcType })
-                                         `map` lhs
+    mkSigTags decLoc (TypeSig   _ lhs hsSigWcType) =
+      flip (mkGhcTag' decLoc) (GtkTypeSignature hsSigWcType) `map` lhs
+    mkSigTags decLoc (PatSynSig _ lhs hsSigWcType) =
+      flip (mkGhcTag' decLoc) (GtkTypeSignature HsWC { hswc_ext = NoExtField
+                                                     , hswc_body = hsSigWcType
+                                                     }) `map` lhs
+    mkSigTags decLoc (ClassOpSig _ _ lhs hsSigWcType) =
+      flip (mkGhcTag' decLoc) (GtkTypeSignature HsWC { hswc_ext = NoExtField
+                                                     , hswc_body = hsSigWcType
+                                                     }) `map` lhs
     mkSigTags _ IdSig {}               = []
     -- TODO: generate theses with additional info (fixity)
     mkSigTags _ FixSig {}              = []

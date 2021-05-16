@@ -341,10 +341,10 @@ cleanupTags DirtyTags{..} = do
            | otherwise        -> a : ignoreSimilarClose (b : rest)
       | otherwise = a : ignoreSimilarClose (b : rest)
       where
-        -- Prefer functions to type signatures and data/GADT constructors to
-        -- type constructors.
+        -- Prefer definitions of functions and pattern synonyms over their type
+        -- signatures and data/GADT constructors over type constructors.
         x `betterThan` y
-          =  (   tagKind x == TkFunction
+          =  (   (tagKind x == TkFunction || tagKind x == TkPatternSynonym)
               && tagKind y == TkTypeSignature
              )
           || (   (tagKind x == TkDataConstructor || tagKind x == TkGADTConstructor)
