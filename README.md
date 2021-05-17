@@ -1,6 +1,7 @@
 # ghc-tags
 
 [![Build Status](https://github.com/arybczak/ghc-tags/workflows/Haskell-CI/badge.svg?branch=master)](https://github.com/arybczak/ghc-tags/actions?query=branch%3Amaster)
+[![Hackage](https://img.shields.io/hackage/v/ghc-tags.svg)](https://hackage.haskell.org/package/ghc-tags)
 
 A command line tool that generates etags (Emacs) and ctags (Vim and other
 editors) for efficient code navigation (jump to definition).
