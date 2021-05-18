@@ -51,7 +51,7 @@ argsParser defaultThreads = do
                        <> help "Generate etags"
 
     tagFile :: Parser FilePath
-    tagFile = strOption $ long "output"
+    tagFile = strOption $ short 'f'
                        <> short 'o'
                        <> metavar "FILE"
                        <> help "Output file"
