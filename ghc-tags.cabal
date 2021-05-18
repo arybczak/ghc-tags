@@ -26,7 +26,7 @@ flag ghc-lib
   description: Use ghc-lib even when compiling with compatible GHC version.
 
 executable ghc-tags
-  ghc-options:         -Wall -threaded -rtsopts
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-A4m
 
   if !flag(ghc-lib) && impl(ghc == 9.0.*)
      build-depends:    ghc, ghc-boot
