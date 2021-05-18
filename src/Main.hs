@@ -9,26 +9,19 @@ import Control.Monad
 import Data.Bifunctor
 import Data.Char
 import Data.Function
-import Data.IORef
 import Data.List
 import Data.Maybe (mapMaybe)
 import Data.Time
 import Data.Time.Format.ISO8601
 import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
-import GHC.Data.FastString
 import GHC.Data.StringBuffer
-import GHC.Driver.Main
 import GHC.Driver.Monad
 import GHC.Driver.Session
 import GHC.Driver.Types (HscEnv(..))
 import GHC.Hs
 import GHC.Parser.Lexer
-import GHC.Paths
-import GHC.Platform
-import GHC.SysTools
 import GHC.Types.SrcLoc
-import GHC.Unit.Module.Env
 import GHC.Utils.Error
 import System.Directory
 import System.Environment
@@ -42,20 +35,19 @@ import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import qualified GHC
 import qualified GHC.Driver.Pipeline as DP
-import qualified GHC.Parser as Parser
 import qualified GHC.Utils.Outputable as Out
 
 import GhcTags
 import GhcTags.Config.Args
 import GhcTags.Config.Project
 import GhcTags.CTag.Header
+import GhcTags.GhcCompat
 import qualified GhcTags.CTag as CTag
 import qualified GhcTags.ETag as ETag
 
@@ -392,51 +384,3 @@ writeTags tagsFile Tags{..} = withFile tagsFile WriteMode $ \h ->
     headers = if null tHeaders
               then defaultHeaders
               else tHeaders
-
-----------------------------------------
-
-runGhc :: Ghc a -> IO a
-runGhc m = do
-  env <- liftIO $ do
-    mySettings <- initSysTools libdir
-    myLlvmConfig <- lazyInitLlvmConfig libdir
-    dflags <- threadSafeInitDynFlags (defaultDynFlags mySettings myLlvmConfig)
-    newHscEnv dflags
-  ref <- newIORef env
-  unGhc (GHC.withCleanupSession m) (Session ref)
-  where
-    threadSafeInitDynFlags dflags = do
-      let -- We can't build with dynamic-too on Windows, as labels before the
-          -- fork point are different depending on whether we are building
-          -- dynamically or not.
-          platformCanGenerateDynamicToo
-              = platformOS (targetPlatform dflags) /= OSMinGW32
-      refCanGenerateDynamicToo <- newIORef platformCanGenerateDynamicToo
-      refNextTempSuffix <- newIORef 0
-      refFilesToClean <- newIORef emptyFilesToClean
-      refDirsToClean <- newIORef Map.empty
-      refGeneratedDumps <- newIORef Set.empty
-      refRtldInfo <- newIORef Nothing
-      refRtccInfo <- newIORef Nothing
-      wrapperNum <- newIORef emptyModuleEnv
-      pure dflags
-        { canGenerateDynamicToo = refCanGenerateDynamicToo
-        , nextTempSuffix = refNextTempSuffix
-        , filesToClean   = refFilesToClean
-        , dirsToClean    = refDirsToClean
-        , generatedDumps = refGeneratedDumps
-        , nextWrapperNum = wrapperNum
-        , rtldInfo       = refRtldInfo
-        , rtccInfo       = refRtccInfo
-        }
-
-parseModule
-  :: FilePath
-  -> DynFlags
-  -> StringBuffer
-  -> ParseResult (Located HsModule)
-parseModule filename flags buffer =
-  unP Parser.parseModule parseState
-  where
-    location = mkRealSrcLoc (mkFastString filename) 1 1
-    parseState = mkPState flags buffer location
