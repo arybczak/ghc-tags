@@ -191,8 +191,8 @@ main = do
     initWorkerData :: Args -> Int -> IO WorkerData
     initWorkerData args threads = do
       wdTags  <- newMVar =<< case aTagType args of
-        ETags -> readTags SingETag (aTagFile args)
-        CTags -> readTags SingCTag (aTagFile args)
+        ETag -> readTags SingETag (aTagFile args)
+        CTag -> readTags SingCTag (aTagFile args)
       wdTimes <- newMVar =<< readTimes (timesFile args)
       wdQueue <- newTBQueueIO (fromIntegral threads)
       pure WorkerData{..}
@@ -244,26 +244,26 @@ writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
 
 ----------------------------------------
 
-data DirtyTags = forall tk. DirtyTags
-  { dtKind    :: SingTagKind tk
+data DirtyTags = forall tt. DirtyTags
+  { dtKind    :: SingTagType tt
   , dtHeaders :: [CTag.Header]
-  , dtTags    :: Map.Map TagFileName (Updated [Tag tk])
+  , dtTags    :: Map.Map TagFileName (Updated [Tag tt])
   }
 
-data Tags = forall tk. Tags
-  { tKind    :: SingTagKind tk
+data Tags = forall tt. Tags
+  { tKind    :: SingTagType tt
   , tHeaders :: [CTag.Header]
-  , tTags    :: Map.Map TagFileName [Tag tk]
+  , tTags    :: Map.Map TagFileName [Tag tt]
   }
 
-readTags :: forall tk. SingTagKind tk -> FilePath -> IO DirtyTags
-readTags tk tagsFile = doesFileExist tagsFile >>= \case
+readTags :: forall tt. SingTagType tt -> FilePath -> IO DirtyTags
+readTags tt tagsFile = doesFileExist tagsFile >>= \case
   False -> pure newDirtyTags
   True  -> do
     res <- tryIOError $ parseTagsFile . T.decodeUtf8 =<< BS.readFile tagsFile
     case res of
       Right (Right (headers, tags)) ->
-        pure $ DirtyTags { dtKind = tk
+        pure $ DirtyTags { dtKind = tt
                          , dtHeaders = headers
                          , dtTags = Map.map (Updated False) tags
                          }
@@ -276,15 +276,15 @@ readTags tk tagsFile = doesFileExist tagsFile >>= \case
         putStrLn $ "Error while parsing " ++ tagsFile ++ ": " ++ show err
         pure newDirtyTags
   where
-    newDirtyTags = DirtyTags { dtKind = tk
+    newDirtyTags = DirtyTags { dtKind = tt
                              , dtHeaders = []
                              , dtTags = Map.empty
                              }
 
     parseTagsFile
       :: T.Text
-      -> IO (Either String ([CTag.Header], Map.Map TagFileName [Tag tk]))
-    parseTagsFile = case tk of
+      -> IO (Either String ([CTag.Header], Map.Map TagFileName [Tag tt]))
+    parseTagsFile = case tt of
       SingETag -> fmap (fmap ([], )) . ETag.parseTagsFile
       SingCTag ->                      CTag.parseTagsFile
 

@@ -1,7 +1,7 @@
 module GhcTags.Tag
   ( -- * Tag
-    TAG_KIND (..)
-  , SingTagKind (..)
+    TagType (..)
+  , SingTagType (..)
   , Tag (..)
   , ETag
   , CTag
@@ -56,16 +56,17 @@ import qualified GHC.Utils.Outputable as Out
 -- Tag
 --
 
--- | Promoted data type used to disntinguish 'CTAG's from 'ETAG's.
+-- | Promoted data type used to disntinguish 'CTag's from 'ETag's.
 --
-data TAG_KIND = CTAG | ETAG
+data TagType = CTag | ETag
+  deriving Show
 
 
 -- | Singletons for promoted types.
 --
-data SingTagKind (tk :: TAG_KIND) where
-    SingCTag :: SingTagKind 'CTAG
-    SingETag :: SingTagKind 'ETAG
+data SingTagType (tt :: TagType) where
+    SingCTag :: SingTagType 'CTag
+    SingETag :: SingTagType 'ETag
 
 
 -- | 'ByteString' which encodes a tag name.
@@ -109,38 +110,38 @@ instance NFData TagFileName where
 -- * 'TkForeignImport' - @I@
 -- * 'TkForeignExport' - @E@
 --
-data TagKind (tk :: TAG_KIND) where
-    TkModule                 :: TagKind tk
-    TkTerm                   :: TagKind tk
-    TkFunction               :: TagKind tk
-    TkTypeConstructor        :: TagKind tk
-    TkDataConstructor        :: TagKind tk
-    TkGADTConstructor        :: TagKind tk
-    TkRecordField            :: TagKind tk
-    TkTypeSynonym            :: TagKind tk
-    TkTypeSignature          :: TagKind tk
-    TkPatternSynonym         :: TagKind tk
-    TkTypeClass              :: TagKind tk
-    TkTypeClassMember        :: TagKind tk
-    TkTypeClassInstance      :: TagKind tk
-    TkTypeFamily             :: TagKind tk
-    TkTypeFamilyInstance     :: TagKind tk
-    TkDataTypeFamily         :: TagKind tk
-    TkDataTypeFamilyInstance :: TagKind tk
-    TkForeignImport          :: TagKind tk
-    TkForeignExport          :: TagKind tk
-    CharKind                 :: Char -> TagKind tk
-    NoKind                   :: TagKind tk
+data TagKind (tt :: TagType) where
+    TkModule                 :: TagKind tt
+    TkTerm                   :: TagKind tt
+    TkFunction               :: TagKind tt
+    TkTypeConstructor        :: TagKind tt
+    TkDataConstructor        :: TagKind tt
+    TkGADTConstructor        :: TagKind tt
+    TkRecordField            :: TagKind tt
+    TkTypeSynonym            :: TagKind tt
+    TkTypeSignature          :: TagKind tt
+    TkPatternSynonym         :: TagKind tt
+    TkTypeClass              :: TagKind tt
+    TkTypeClassMember        :: TagKind tt
+    TkTypeClassInstance      :: TagKind tt
+    TkTypeFamily             :: TagKind tt
+    TkTypeFamilyInstance     :: TagKind tt
+    TkDataTypeFamily         :: TagKind tt
+    TkDataTypeFamilyInstance :: TagKind tt
+    TkForeignImport          :: TagKind tt
+    TkForeignExport          :: TagKind tt
+    CharKind                 :: Char -> TagKind tt
+    NoKind                   :: TagKind tt
 
-instance NFData (TagKind tk) where
+instance NFData (TagKind tt) where
   rnf x = x `seq` ()
 
-type CTagKind = TagKind 'CTAG
-type ETagKind = TagKind 'ETAG
+type CTagKind = TagKind 'CTag
+type ETagKind = TagKind 'ETag
 
-deriving instance Eq   (TagKind tk)
-deriving instance Ord  (TagKind tk)
-deriving instance Show (TagKind tk)
+deriving instance Eq   (TagKind tt)
+deriving instance Ord  (TagKind tt)
+deriving instance Show (TagKind tt)
 
 
 newtype ExCommand = ExCommand { getExCommand :: Text }
@@ -149,53 +150,53 @@ newtype ExCommand = ExCommand { getExCommand :: Text }
 
 -- | Tag address, either from a parsed file or from Haskell's AST>
 --
-data TagAddress (tk :: TAG_KIND) where
+data TagAddress (tt :: TagType) where
       -- | Precise addres: line and column.  This is what we infer from @GHC@
       -- AST.
       --
       -- The two arguments are line number and either column number or offset
       -- from the begining of the file.
       --
-      TagLineCol :: Int -> Int -> TagAddress tk
+      TagLineCol :: Int -> Int -> TagAddress tt
 
       -- | ctags can only use range ex-commands as an address (or a sequence of
       -- them separated by `;`). We parse line number specifically, since they
       -- are useful for ordering tags.
       --
-      TagLine :: Int -> TagAddress 'CTAG
+      TagLine :: Int -> TagAddress 'CTag
 
       -- | A tag address can be just an ex command.
       --
-      TagCommand :: ExCommand -> TagAddress 'CTAG
+      TagCommand :: ExCommand -> TagAddress 'CTag
 
-instance NFData (TagAddress tk) where
+instance NFData (TagAddress tt) where
   rnf x = x `seq` ()
 
 -- | 'CTag' addresses.
 --
-type CTagAddress = TagAddress 'CTAG
+type CTagAddress = TagAddress 'CTag
 
 -- | 'ETag' addresses.
 --
-type ETagAddress = TagAddress 'ETAG
+type ETagAddress = TagAddress 'ETag
 
 
-deriving instance Eq   (TagAddress tk)
-deriving instance Ord  (TagAddress tk)
-deriving instance Show (TagAddress tk)
+deriving instance Eq   (TagAddress tt)
+deriving instance Ord  (TagAddress tt)
+deriving instance Show (TagAddress tt)
 
 
 -- | Emacs tags specific field.
 --
-data TagDefinition (tk :: TAG_KIND) where
-      TagDefinition   :: Text -> TagDefinition 'ETAG
-      NoTagDefinition :: TagDefinition tk
+data TagDefinition (tt :: TagType) where
+      TagDefinition   :: Text -> TagDefinition 'ETag
+      NoTagDefinition :: TagDefinition tt
 
-instance NFData (TagDefinition tk) where
+instance NFData (TagDefinition tt) where
   rnf x = x `seq` ()
 
-deriving instance Show (TagDefinition tk)
-deriving instance Eq   (TagDefinition tk)
+deriving instance Show (TagDefinition tt)
+deriving instance Eq   (TagDefinition tt)
 
 -- | Unit of data associated with a tag.  Vim natively supports `file:` and
 -- `kind:` tags but it can display any other tags too.
@@ -218,61 +219,61 @@ fileField = TagField { fieldName = "file", fieldValue = "" }
 
 -- | Ctags specific list of 'TagField's.
 --
-data TagFields (tk :: TAG_KIND) where
-    NoTagFields :: TagFields 'ETAG
+data TagFields (tt :: TagType) where
+    NoTagFields :: TagFields 'ETag
 
     TagFields   :: [TagField]
-                -> TagFields 'CTAG
+                -> TagFields 'CTag
 
-instance NFData (TagFields tk) where
+instance NFData (TagFields tt) where
   rnf NoTagFields    = ()
   rnf (TagFields fs) = rnf fs
 
-deriving instance Show (TagFields tk)
-deriving instance Eq   (TagFields tk)
-instance Semigroup (TagFields tk) where
+deriving instance Show (TagFields tt)
+deriving instance Eq   (TagFields tt)
+instance Semigroup (TagFields tt) where
     NoTagFields   <> NoTagFields   = NoTagFields
     (TagFields a) <> (TagFields b) = TagFields (a ++ b)
-instance Monoid (TagFields 'CTAG) where
+instance Monoid (TagFields 'CTag) where
     mempty = TagFields mempty
-instance Monoid (TagFields 'ETAG) where
+instance Monoid (TagFields 'ETag) where
     mempty = NoTagFields
 
-type CTagFields = TagFields 'CTAG
-type ETagFields = TagFields 'ETAG
+type CTagFields = TagFields 'CTag
+type ETagFields = TagFields 'ETag
 
 
 -- | Tag record.  For either ctags or etags formats.  It is either filled with
 -- information parsed from a tags file or from *GHC* ast.
 --
-data Tag (tk :: TAG_KIND) = Tag
+data Tag (tt :: TagType) = Tag
   { tagName       :: TagName
     -- ^ name of the tag
-  , tagKind       :: TagKind tk
+  , tagKind       :: TagKind tt
     -- ^ ctags specifc field, which classifies tags
-  , tagAddr       :: TagAddress tk
+  , tagAddr       :: TagAddress tt
     -- ^ address in source file
-  , tagDefinition :: TagDefinition tk
+  , tagDefinition :: TagDefinition tt
     -- ^ etags specific field; only tags read from emacs tags file contain this
     -- field.
-  , tagFields     :: TagFields tk
+  , tagFields     :: TagFields tt
     -- ^ ctags specific field
   }
   deriving (Show, Eq)
 
-instance NFData (Tag tk) where
+instance NFData (Tag tt) where
   rnf Tag{..} = rnf tagName
           `seq` rnf tagKind
           `seq` rnf tagAddr
           `seq` rnf tagDefinition
           `seq` rnf tagFields
 
-type CTag = Tag 'CTAG
-type ETag = Tag 'ETAG
+type CTag = Tag 'CTag
+type ETag = Tag 'ETag
 
-type TagMap tk = Map TagFileName [Tag tk]
-type CTagMap = TagMap 'CTAG
-type ETagMap = TagMap 'ETAG
+type TagMap tt = Map TagFileName [Tag tt]
+type CTagMap = TagMap 'CTag
+type ETagMap = TagMap 'ETag
 
 -- | Total order relation on 'Tag' elements.
 --
@@ -291,7 +292,7 @@ type ETagMap = TagMap 'ETAG
 --
 --   prop> a == b => compareTags a b == EQ
 --
-compareTags :: forall (tk :: TAG_KIND). Ord (TagAddress tk) => Tag tk -> Tag tk -> Ordering
+compareTags :: forall (tt :: TagType). Ord (TagAddress tt) => Tag tt -> Tag tt -> Ordering
 compareTags t0 t1 = on compare tagName t0 t1
                     -- sort type classes / type families before their instances,
                     -- and take precendence over a file where they are defined.
@@ -303,7 +304,7 @@ compareTags t0 t1 = on compare tagName t0 t1
                  <> on compare tagKind     t0 t1
 
     where
-      getTkClass :: Tag tk -> Maybe (TagKind tk)
+      getTkClass :: Tag tt -> Maybe (TagKind tt)
       getTkClass t = case tagKind t of
         TkTypeClass              -> Just TkTypeClass
         TkTypeClassInstance      -> Just TkTypeClassInstance
@@ -319,7 +320,7 @@ compareTags t0 t1 = on compare tagName t0 t1
 
 -- | Create a 'Tag' from 'GhcTag'.
 --
-ghcTagToTag :: SingTagKind tk -> DynFlags -> GhcTag -> Maybe (TagFileName, Tag tk)
+ghcTagToTag :: SingTagType tt -> DynFlags -> GhcTag -> Maybe (TagFileName, Tag tt)
 ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI } =
     case gtSrcSpan of
       UnhelpfulSpan {} -> Nothing
@@ -345,7 +346,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
 
     tagName = Text.decodeUtf8 gtTag
 
-    fromGhcTagKind :: GhcTagKind -> TagKind tk
+    fromGhcTagKind :: GhcTagKind -> TagKind tt
     fromGhcTagKind = \case
       GtkModule                    -> TkModule
       GtkTerm                      -> TkTerm
@@ -369,7 +370,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
       GtkForeignExport             -> TkForeignExport
 
     -- static field (wheather term is exported or not)
-    staticField :: SingTagKind tk -> TagFields tk
+    staticField :: SingTagType tt -> TagFields tt
     staticField = \case
       SingETag -> NoTagFields
       SingCTag ->
@@ -379,7 +380,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
             else [fileField]
 
     -- ffi field
-    ffiField :: SingTagKind tk -> TagFields tk
+    ffiField :: SingTagType tt -> TagFields tt
     ffiField = \case
       SingETag -> NoTagFields
       SingCTag ->
@@ -390,7 +391,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
 
 
     -- 'TagFields' from 'GhcTagKind'
-    kindField :: SingTagKind tk -> TagFields tk
+    kindField :: SingTagType tt -> TagFields tt
     kindField = \case
       SingETag -> NoTagFields
       SingCTag ->
@@ -436,7 +437,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
     -- fields
     --
     
-    mkField :: Out.Outputable p => Text -> p -> TagFields 'CTAG
+    mkField :: Out.Outputable p => Text -> p -> TagFields 'CTag
     mkField fieldName  p =
       TagFields
         [ TagField

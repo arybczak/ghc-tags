@@ -5,15 +5,12 @@ import Data.Version
 import Options.Applicative
 
 import GhcTags.Config.Project
+import GhcTags.Tag
 import Paths_ghc_tags (version)
 
--- | Generate either ctags or etags.
-data TagType = CTags | ETags
-  deriving Show
-
 defaultOutputFile :: TagType -> FilePath
-defaultOutputFile CTags = "tags"
-defaultOutputFile ETags = "TAGS"
+defaultOutputFile CTag = "tags"
+defaultOutputFile ETag = "TAGS"
 
 -- | Get source paths from the configuration file or command line arguments.
 data SourcePaths
@@ -41,14 +38,14 @@ argsParser defaultThreads = do
               }
   where
     ctags :: Parser TagType
-    ctags = flag' CTags $ long "ctags"
-                       <> short 'c'
-                       <> help "Generate ctags"
+    ctags = flag' CTag $ long "ctags"
+                      <> short 'c'
+                      <> help "Generate ctags"
 
     etags :: Parser TagType
-    etags = flag' ETags $ long "etags"
-                       <> short 'e'
-                       <> help "Generate etags"
+    etags = flag' ETag $ long "etags"
+                      <> short 'e'
+                      <> help "Generate etags"
 
     tagFile :: Parser FilePath
     tagFile = strOption $ short 'f'
