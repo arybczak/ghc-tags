@@ -1,9 +1,3 @@
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE NamedFieldPuns     #-}
-{-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE StandaloneDeriving #-}
-
 module GhcTags.CTag.Header
   ( Header (..)
   , defaultHeaders
@@ -14,6 +8,7 @@ module GhcTags.CTag.Header
   , headerTypeSing
   ) where
 
+import Control.DeepSeq
 import Data.Version
 import qualified Data.Text as T
 
@@ -22,13 +17,19 @@ import Paths_ghc_tags (version)
 -- | A type safe representation of a /ctag/ header.
 --
 data Header where
-    Header :: forall ty. Show ty =>
+    Header :: forall ty. (NFData ty, Show ty) =>
               { headerType     :: HeaderType ty
               , headerLanguage :: Maybe T.Text
               , headerArg      :: ty
               , headerComment  :: T.Text
               }
             -> Header
+
+instance NFData Header where
+  rnf Header{..} = rnf headerType
+             `seq` rnf headerLanguage
+             `seq` rnf headerArg
+             `seq` rnf headerComment
 
 instance Eq Header where
     Header  { headerType = headerType0
@@ -117,6 +118,10 @@ data HeaderType ty where
     ExtraDescription  :: HeaderType T.Text
     FieldDescription  :: HeaderType T.Text
     PseudoTag         :: T.Text -> HeaderType T.Text
+
+instance NFData (HeaderType ty) where
+  rnf (PseudoTag t) = rnf t
+  rnf ty            = ty `seq` ()
 
 deriving instance Eq (HeaderType ty)
 deriving instance Ord (HeaderType ty)

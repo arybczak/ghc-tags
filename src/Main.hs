@@ -263,10 +263,12 @@ readTags tt tagsFile = doesFileExist tagsFile >>= \case
     res <- tryIOError $ parseTagsFile . T.decodeUtf8 =<< BS.readFile tagsFile
     case res of
       Right (Right (headers, tags)) ->
-        pure $ DirtyTags { dtKind = tt
-                         , dtHeaders = headers
-                         , dtTags = Map.map (Updated False) tags
-                         }
+        -- full evaluation decreases performance variation
+        deepseq headers . deepseq tags $ pure DirtyTags
+        { dtKind = tt
+        , dtHeaders = headers
+        , dtTags = Map.map (Updated False) tags
+        }
       -- reading failed
       Left err -> do
         putStrLn $ "Error while reading " ++ tagsFile ++ ": " ++ show err

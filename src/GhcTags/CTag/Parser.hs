@@ -9,6 +9,7 @@ module GhcTags.CTag.Parser
   ) where
 
 import           Control.Applicative (many, (<|>))
+import           Control.DeepSeq (NFData)
 import           Data.Attoparsec.Text  (Parser, (<?>))
 import qualified Data.Attoparsec.Text  as AT
 import           Data.Functor (void, ($>))
@@ -129,13 +130,11 @@ parseField =
 -- | A vim-style tag file parser.
 --
 parseTags :: Parser ([Header], CTagMap)
-parseTags = (\headers tags -> ( headers
-                              , Map.fromListWith (++) $ map (second (:[])) tags
-                              ))
+parseTags = (\headers tags -> (headers, Map.fromListWith (++) $ map sndList tags))
   <$> many parseHeader
   <*> many parseTag
   where
-    second f (a, b) = (a, f b)
+    sndList (file, tag) = (file, [tag])
 
 parseHeader :: Parser Header
 parseHeader = do
@@ -190,7 +189,7 @@ parseHeader = do
               error "parseHeader: impossible happened"
 
   where
-    parsePseudoTagArgs :: Show ty
+    parsePseudoTagArgs :: (NFData ty, Show ty)
                        => HeaderType ty
                        -> Parser ty
                        -> Parser Header
