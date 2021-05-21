@@ -2,18 +2,15 @@
 --
 module GhcTags.CTag.Parser
   ( parseTagsFile
-  , parseTagLine
   -- * parse a ctag
   , parseTag
   -- * parse a pseudo-ctag
   , parseHeader
   ) where
 
-import           Control.Arrow ((***), second)
 import           Control.Applicative (many, (<|>))
 import           Data.Attoparsec.Text  (Parser, (<?>))
 import qualified Data.Attoparsec.Text  as AT
-import           Data.Either (partitionEithers)
 import           Data.Functor (void, ($>))
 import           qualified Data.Map.Strict as Map
 import           Data.Text          (Text)
@@ -23,6 +20,7 @@ import           GhcTags.Tag
 import qualified GhcTags.Utils as Utils
 import           GhcTags.CTag.Header
 import           GhcTags.CTag.Utils
+
 
 
 -- | Parser for a 'CTag' from a single text line.
@@ -54,22 +52,22 @@ parseTag =
                          endOfLine $> mempty)
                        )
 
+          -- kind encoded as a single letter, followed by a list
+          -- of fields or end of line.
+          <|> (,) <$> ( separator *> (charToTagKind <$> AT.satisfy notTabOrNewLine) )
+                  <*> ( separator *> parseFields <* endOfLine
+                        <|>
+                        endOfLine $> mempty
+                      )
+
           -- list of fields (kind field might be later, but don't check it, we
           -- always format it as the first field) or end of line.
-          <|> curry id NoKind
+          <|> (NoKind, )
                 <$> ( separator *> parseFields <* endOfLine
                       <|>
                       endOfLine $> mempty
                     )
 
-          -- kind encoded as a single letter, followed by a list
-          -- of fields or end of line.
-          <|> curry (charToTagKind *** id)
-                  <$> ( separator *> AT.satisfy notTabOrNewLine )
-                  <*> ( separator *> parseFields <* endOfLine
-                        <|>
-                        endOfLine $> mempty
-                      )
           <|> endOfLine $> (NoKind, mempty)
         )
 
@@ -131,19 +129,13 @@ parseField =
 -- | A vim-style tag file parser.
 --
 parseTags :: Parser ([Header], CTagMap)
-parseTags = second (Map.fromListWith (++) . map (second (:[])))
-          . partitionEithers
-  <$> many parseTagLine
-
-
--- | Parse either a header line ot a 'CTag'.
---
-parseTagLine :: Parser (Either Header (TagFileName, CTag))
-parseTagLine =
-    AT.eitherP
-      (parseHeader <?> "failed parsing tag")
-      (parseTag    <?> "failed parsing header")
-
+parseTags = (\headers tags -> ( headers
+                              , Map.fromListWith (++) $ map (second (:[])) tags
+                              ))
+  <$> many parseHeader
+  <*> many parseTag
+  where
+    second f (a, b) = (a, f b)
 
 parseHeader :: Parser Header
 parseHeader = do
