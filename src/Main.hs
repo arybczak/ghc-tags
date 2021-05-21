@@ -312,7 +312,7 @@ cleanupTags DirtyTags{..} = do
     if | exists && updated -> do
            let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
            case dtKind of
-             SingCTag -> pure $ Just cleanedTags
+             SingCTag -> addExCommands  file cleanedTags
              SingETag -> addFileOffsets file cleanedTags
        | exists && not updated -> pure $ Just tags
        | otherwise -> pure Nothing
@@ -343,6 +343,30 @@ cleanupTags DirtyTags{..} = do
               &&  tagKind y == TkTypeConstructor
              )
     ignoreSimilarClose tags = tags
+
+-- | Convert 'tagAddress' of CTags to an ex command as editors such as Kate or
+-- VSCode don't support jumping to a line number and require a line match.
+addExCommands :: TagFileName -> [CTag] -> IO (Maybe [CTag])
+addExCommands file tags = do
+  let path = T.unpack $ getTagFileName file
+  tryIOError (BS.readFile path) >>= \case
+    Left err -> do
+      putStrLn $ "Unexpected error: " ++ show err
+      pure Nothing
+    Right content -> do
+      let fileLines = V.fromList $ BS.lines content
+      pure . Just $ fillExCommands fileLines tags
+  where
+    fillExCommands :: V.Vector BS.ByteString -> [CTag] -> [CTag]
+    fillExCommands fileLines = mapMaybe $ \tag -> case tagAddr tag of
+      TagCommand{}        -> Just tag
+      TagLineCol lineNo _ -> fillExCommand lineNo tag
+      TagLine lineNo      -> fillExCommand lineNo tag
+      where
+        fillExCommand lineNo tag = do
+          line <- fileLines V.!? (lineNo - 1)
+          let exCommand = mconcat ["/^" , T.decodeUtf8 line, "$/"]
+          pure tag { tagAddr = TagCommand $ ExCommand exCommand }
 
 -- | Add file offsets to etags from a specific file.
 addFileOffsets :: TagFileName -> [ETag] -> IO (Maybe [ETag])

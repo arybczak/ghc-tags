@@ -42,7 +42,7 @@ formatTag fileName Tag { tagName, tagAddr, tagKind, tagFields = TagFields tagFie
     <> formatKindChar tagKind
 
     -- tag fields
-    <> foldMap ((BS.charUtf8 '\t' <>) . formatField) tagFields 
+    <> foldMap ((BS.charUtf8 '\t' <>) . formatField) tagFields
 
     <> BS.stringUtf8 endOfLine
 
