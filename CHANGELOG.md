@@ -1,4 +1,4 @@
-# ghc-tags-1.2 (2021-05-??)
+# ghc-tags-1.2 (2021-05-22)
 * Fix sorting of ctags.
 * Express addresses of ctags as ex commands.
 * Improve performance of parsing a ctags file.
