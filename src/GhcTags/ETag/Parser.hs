@@ -63,7 +63,7 @@ parseTag =
                               Nothing   -> TagName tagDefinition
                               Just name -> name
           , tagKind       = NoKind
-          , tagAddr       = TagLineCol lineNo byteOffset
+          , tagAddr       = TagLineOff lineNo byteOffset
           , tagDefinition = case mTagName of
                               Nothing -> NoTagDefinition
                               Just _  -> TagDefinition tagDefinition

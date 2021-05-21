@@ -1,8 +1,7 @@
 -- | Simple etags formatter. See <https://en.wikipedia.org/wiki/Ctags#Etags>
 --
 module GhcTags.ETag.Formatter
-  ( withByteOffset
-  , formatETagsFile 
+  ( formatETagsFile
   , formatTagsFile
   , formatTag
   , BuilderWithSize (..)
@@ -11,7 +10,6 @@ module GhcTags.ETag.Formatter
 import qualified Data.ByteString as BS
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as BB
-import           Data.Foldable (foldl')
 import qualified Data.Map.Strict    as Map
 import qualified Data.Text.Encoding as Text
 
@@ -32,22 +30,8 @@ instance Semigroup BuilderWithSize where
 instance Monoid BuilderWithSize where
     mempty = BuilderWithSize mempty 0
 
-computeByteOffset
-    :: [Int]
-    -- ^ lengths of lines
-    -> ETagAddress
-    -> ETagAddress
-computeByteOffset ll (TagLineCol line col) = TagLineCol line byteOffset
-  where
-    byteOffset =
-        foldl' (+) 0 (take (pred line) ll)
-      + col
-
-withByteOffset :: [Int] -> ETag -> ETag
-withByteOffset ll tag@Tag { tagAddr } = tag { tagAddr = computeByteOffset ll tagAddr }
-
 formatTag :: ETag -> BuilderWithSize
-formatTag Tag {tagName, tagAddr = TagLineCol lineNr byteOffset, tagDefinition} =
+formatTag Tag {tagName, tagAddr = TagLineOff lineNr byteOffset, tagDefinition} =
            flip BuilderWithSize tagSize $
            BB.byteString tagDefinitionBS
         <> BB.charUtf8 '\DEL' -- or '\x7f'

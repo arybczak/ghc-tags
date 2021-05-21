@@ -44,7 +44,6 @@ import           GHC.Types.SrcLoc
                               ( SrcSpan (..)
                               , srcSpanFile
                               , srcSpanStartLine
-                              , srcSpanStartCol
                               )
 
 import           GhcTags.Ghc  ( GhcTag (..)
@@ -151,13 +150,10 @@ newtype ExCommand = ExCommand { getExCommand :: Text }
 -- | Tag address, either from a parsed file or from Haskell's AST>
 --
 data TagAddress (tt :: TagType) where
-      -- | Precise addres: line and column.  This is what we infer from @GHC@
-      -- AST.
+      -- | Address of an etag is a line number and byte offset from the begining
+      -- of the file.
       --
-      -- The two arguments are line number and either column number or offset
-      -- from the begining of the file.
-      --
-      TagLineCol :: Int -> Int -> TagAddress tt
+      TagLineOff :: Int -> Int -> TagAddress 'ETag
 
       -- | ctags can only use range ex-commands as an address (or a sequence of
       -- them separated by `;`). We parse line number specifically, since they
@@ -328,8 +324,9 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         Just . (fileName realSrcSpan, ) $ Tag
           { tagName       = TagName tagName 
 
-          , tagAddr       = TagLineCol (srcSpanStartLine realSrcSpan)
-                                       (srcSpanStartCol realSrcSpan)
+          , tagAddr       = case sing of
+                              SingETag -> TagLineOff (srcSpanStartLine realSrcSpan) 0
+                              SingCTag -> TagLine    (srcSpanStartLine realSrcSpan)
 
           , tagKind       = fromGhcTagKind gtKind
 

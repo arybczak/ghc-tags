@@ -49,9 +49,6 @@ formatTag fileName Tag { tagName, tagAddr, tagKind, tagFields = TagFields tagFie
   where
 
     formatTagAddress :: CTagAddress -> Builder
-    formatTagAddress (TagLineCol lineNo _colNo) =
-      BS.intDec lineNo -- Vim only allows to use ranges; there's no way to
-                       -- specify column (`c|` command is not allowed)
     formatTagAddress (TagLine lineNo) =
       BS.intDec lineNo
     formatTagAddress (TagCommand exCommand) =

@@ -362,13 +362,10 @@ addExCommands file tags = do
     fillExCommands :: V.Vector BS.ByteString -> [CTag] -> [CTag]
     fillExCommands fileLines = mapMaybe $ \tag -> case tagAddr tag of
       TagCommand{}        -> Just tag
-      TagLineCol lineNo _ -> fillExCommand lineNo tag
-      TagLine lineNo      -> fillExCommand lineNo tag
-      where
-        fillExCommand lineNo tag = do
-          line <- fileLines V.!? (lineNo - 1)
-          let exCommand = mconcat ["/^" , T.decodeUtf8 line, "$/"]
-          pure tag { tagAddr = TagCommand $ ExCommand exCommand }
+      TagLine lineNo      -> do
+        line <- fileLines V.!? (lineNo - 1)
+        let exCommand = mconcat ["/^" , T.decodeUtf8 line, "$/"]
+        pure tag { tagAddr = TagCommand $ ExCommand exCommand }
 
 -- | Add file offsets to etags from a specific file.
 addFileOffsets :: TagFileName -> [ETag] -> IO (Maybe [ETag])
@@ -389,10 +386,10 @@ addFileOffsets file tags = do
   where
     fillOffsets :: V.Vector (Int, BS.ByteString) -> [ETag] -> [ETag]
     fillOffsets linesWithOffsets = mapMaybe $ \tag -> do
-      let TagLineCol lineNo _ = tagAddr tag
-      (lineOffset, line) <- linesWithOffsets V.!? (lineNo - 1)
+      let TagLineOff lineNo _ = tagAddr tag
+      (offset, line) <- linesWithOffsets V.!? (lineNo - 1)
       pure tag
-        { tagAddr       = TagLineCol lineNo lineOffset
+        { tagAddr       = TagLineOff lineNo offset
         , tagDefinition =
           -- Prevent weird characters from ending up in the TAGS file.
           TagDefinition . T.takeWhile isPrint $ T.decodeUtf8 line
