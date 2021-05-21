@@ -1,3 +1,6 @@
+# ghc-tags-1.2 (2021-05-??)
+* Fix sorting of ctags
+
 # ghc-tags-1.1 (2021-05-18)
 * Fix compatibility with GHC 8.10.
 * Drop support for GHC 8.8.

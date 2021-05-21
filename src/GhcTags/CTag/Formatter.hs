@@ -11,6 +11,7 @@ module GhcTags.CTag.Formatter
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as BS
 import           Data.Char (isAscii)
+import           Data.List (sortBy)
 import qualified Data.Map.Strict as Map
 import           Data.Text          (Text)
 import qualified Data.Text.Encoding as Text
@@ -129,6 +130,20 @@ formatHeader Header { headerType, headerLanguage, headerArg, headerComment } =
 formatTagsFile :: [Header]          -- ^ Headers
                -> CTagMap           -- ^ 'CTag's
                -> Builder
-formatTagsFile headers tags =
-       foldMap formatHeader headers
-    <> Map.foldMapWithKey (foldMap . formatTag) tags
+formatTagsFile headers tags = foldMap formatHeader headers
+  <> (foldMap formatTagLine . sortBy compareTagLine
+                            . Map.foldrWithKey concatTags []
+                            $ tags)
+  where
+    concatTags :: TagFileName -> [CTag] -> [CTagLine] -> [CTagLine]
+    concatTags file ts acc = map (CTagLine file) ts ++ acc
+
+    compareTagLine :: CTagLine -> CTagLine -> Ordering
+    compareTagLine (CTagLine file0 tag0) (CTagLine file1 tag1) =
+      compareTags tag0 tag1 <> compare file0 file1
+
+    formatTagLine :: CTagLine -> Builder
+    formatTagLine (CTagLine file tag) = formatTag file tag
+
+-- | Helper data type for 'formatTagsFile'.
+data CTagLine = CTagLine TagFileName CTag

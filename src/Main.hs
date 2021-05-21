@@ -377,8 +377,7 @@ writeTags tagsFile Tags{..} = withFile tagsFile WriteMode $ \h ->
   BS.hPutBuilder h $ case tKind of
     SingETag -> (`Map.foldMapWithKey` tTags) $ \path ->
       ETag.formatTagsFile path . sortBy ETag.compareTags
-    SingCTag -> CTag.formatTagsFile headers $
-      Map.map (sortBy CTag.compareTags) tTags
+    SingCTag -> CTag.formatTagsFile headers tTags
   where
     headers :: [Header]
     headers = if null tHeaders
