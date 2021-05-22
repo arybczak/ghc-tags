@@ -23,14 +23,16 @@ data Args = Args
   , aTagFile      :: FilePath
   , aThreads      :: Int
   , aSourcePaths  :: SourcePaths
+  , aExModeSearch :: Bool
   } deriving Show
 
 argsParser :: Int -> Parser Args
 argsParser defaultThreads = do
-  aTagType     <- ctags <|> etags
-  aTagFile0    <- tagFile
-  aThreads     <- threads
-  aSourcePaths <- (SourceArgs <$> sourcePaths) <|> (ConfigFile <$> configFile)
+  aTagType      <- ctags <|> etags
+  aTagFile0     <- tagFile
+  aThreads      <- threads
+  aSourcePaths  <- (SourceArgs <$> sourcePaths) <|> (ConfigFile <$> configFile)
+  aExModeSearch <- exModeSearch
   pure $ Args { aTagFile = if null aTagFile0
                            then defaultOutputFile aTagType
                            else aTagFile0
@@ -62,9 +64,6 @@ argsParser defaultThreads = do
                           <> showDefaultWith id
                           <> help "Configuration file"
 
-    sourcePaths :: Parser [FilePath]
-    sourcePaths = some . argument str $ metavar "<source paths...>"
-
     threads :: Parser Int
     threads = option auto $ long "threads"
                          <> short 'j'
@@ -72,6 +71,13 @@ argsParser defaultThreads = do
                          <> value defaultThreads
                          <> showDefault
                          <> help "Number of threads to use"
+
+    sourcePaths :: Parser [FilePath]
+    sourcePaths = some . argument str $ metavar "<source paths...>"
+
+    exModeSearch :: Parser Bool
+    exModeSearch = switch $ long "ex-mode-search"
+                         <> help "Use Ex mode commands instead of line numbers (ctags)"
 
 parseArgs :: Int -> [String] -> IO Args
 parseArgs defaultThreads = handleParseResult . execParserPure defaultPrefs opts

@@ -182,7 +182,7 @@ main = do
     forM_ pcs $ generateTagsForProject (aThreads args) wd
     setNumCapabilities 1
 
-    cleanTagMap <- withMVar (wdTags wd) cleanupTags
+    cleanTagMap <- withMVar (wdTags wd) (cleanupTags args)
     writeTags (aTagFile args) cleanTagMap
     withMVar (wdTimes wd) $ writeTimes (timesFile args) <=< cleanupTimes cleanTagMap
   where
@@ -303,8 +303,8 @@ updateTagsWith dflags hsModule DirtyTags{..} =
                $ getGhcTags hsModule
       in Map.map (Updated True) $!! tags
 
-cleanupTags :: DirtyTags -> IO Tags
-cleanupTags DirtyTags{..} = do
+cleanupTags :: Args -> DirtyTags -> IO Tags
+cleanupTags args DirtyTags{..} = do
   newTags <- (`Map.traverseMaybeWithKey` dtTags) $ \file (Updated updated tags) -> do
     let path = T.unpack $ getTagFileName file
     -- The file might not exists even though it was updated, e.g. when .x files
@@ -314,7 +314,9 @@ cleanupTags DirtyTags{..} = do
     if | exists && updated -> do
            let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
            case dtKind of
-             SingCTag -> addExCommands  file cleanedTags
+             SingCTag -> if aExModeSearch args
+               then addExCommands file cleanedTags
+               else pure $ Just cleanedTags
              SingETag -> addFileOffsets file cleanedTags
        | exists && not updated -> pure $ Just tags
        | otherwise -> pure Nothing
@@ -346,8 +348,8 @@ cleanupTags DirtyTags{..} = do
              )
     ignoreSimilarClose tags = tags
 
--- | Convert 'tagAddress' of CTags to an ex mode command as editors such as Kate
--- or VS Code don't support jumping to a line number and require a line match.
+-- | Convert 'tagAddress' of CTags to an Ex mode search command as some editors
+-- (e.g. Kate) don't support jumping to a line number and require a line match.
 addExCommands :: TagFileName -> [CTag] -> IO (Maybe [CTag])
 addExCommands file tags = do
   let path = T.unpack $ getTagFileName file
@@ -364,9 +366,13 @@ addExCommands file tags = do
       TagCommand{}        -> Just tag
       TagLine lineNo      -> do
         line <- fileLines V.!? (lineNo - 1)
-        -- Ex mode forward search command. Slashes need to be escaped.
-        let exCommand = T.concat ["/^", T.replace "/" "\\/" $ T.decodeUtf8 line, "$/"]
-        pure tag { tagAddr = TagCommand $ ExCommand exCommand }
+        let TagFields fields = tagFields tag
+            -- Ex mode forward search command. Slashes need to be escaped.
+            exCommand = T.concat ["/^", T.replace "/" "\\/" $ T.decodeUtf8 line, "$/"]
+        pure tag
+          { tagAddr = TagCommand $ ExCommand exCommand
+          , tagFields = TagFields $ TagField "line" (T.pack $ show lineNo) : fields
+          }
 
 -- | Add file offsets to etags from a specific file.
 addFileOffsets :: TagFileName -> [ETag] -> IO (Maybe [ETag])
