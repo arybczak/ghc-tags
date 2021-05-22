@@ -44,12 +44,9 @@ parseTag =
     <*> parseTagAddress
 
     <*> (  -- kind followed by list of fields or end of line
-              (,) <$ AT.string ";\""
-                  <*> ( separator *> ( parseKindField
-                                       <|>
-                                       charToTagKind <$> AT.satisfy notTabOrNewLine
-                                     )
-                      )
+              (,) <$  AT.string ";\""
+                  <*  separator
+                  <*> (charToTagKind <$> AT.satisfy notTabOrNewLine)
                   <*> fieldsInLine
 
           -- list of fields (kind field might be later, but don't check it, we
@@ -95,11 +92,6 @@ parseTag =
     parseTagAddress = TagLine <$> AT.decimal
                       <|>
                       TagCommand <$> parseExSearchCommand
-
-    parseKindField :: Parser CTagKind
-    parseKindField =
-      charToTagKind <$>
-        (AT.string "kind:" *> AT.satisfy notTabOrNewLine)
 
     parseFields :: Parser CTagFields
     parseFields = TagFields <$> AT.sepBy parseField separator

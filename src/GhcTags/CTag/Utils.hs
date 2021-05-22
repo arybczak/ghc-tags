@@ -9,21 +9,22 @@ import           GhcTags.Tag
 
 tagKindToChar :: CTagKind -> Maybe Char
 tagKindToChar tk = case tk of
+    -- No 'F' kind since it's for a filename.
     TkModule                  -> Just 'M'
     TkTerm                    -> Just '`'
-    TkFunction                -> Just 'λ'
-    TkTypeConstructor         -> Just 'Λ'
+    TkFunction                -> Just 'f'
+    TkTypeConstructor         -> Just 'A'
     TkDataConstructor         -> Just 'c'
     TkGADTConstructor         -> Just 'g'
     TkRecordField             -> Just 'r'
-    TkTypeSynonym             -> Just '≡'
-    TkTypeSignature           -> Just '⊢'
+    TkTypeSynonym             -> Just '='
+    TkTypeSignature           -> Just ':'
     TkPatternSynonym          -> Just 'p'
     TkTypeClass               -> Just 'C'
     TkTypeClassMember         -> Just 'm'
     TkTypeClassInstance       -> Just 'i'
-    TkTypeFamily              -> Just 'f'
-    TkTypeFamilyInstance      -> Just 'F'
+    TkTypeFamily              -> Just 'T'
+    TkTypeFamilyInstance      -> Just 't'
     TkDataTypeFamily          -> Just 'd'
     TkDataTypeFamilyInstance  -> Just 'D'
     TkForeignImport           -> Just 'I'
@@ -37,19 +38,19 @@ charToTagKind :: Char -> CTagKind
 charToTagKind c = case c of
      'M' -> TkModule
      '`' -> TkTerm
-     'λ' -> TkFunction
-     'Λ' -> TkTypeConstructor
+     'f' -> TkFunction
+     'A' -> TkTypeConstructor
      'c' -> TkDataConstructor
      'g' -> TkGADTConstructor
      'r' -> TkRecordField
-     '≡' -> TkTypeSynonym
-     '⊢' -> TkTypeSignature
+     '=' -> TkTypeSynonym
+     ':' -> TkTypeSignature
      'p' -> TkPatternSynonym
      'C' -> TkTypeClass
      'm' -> TkTypeClassMember
      'i' -> TkTypeClassInstance
-     'f' -> TkTypeFamily
-     'F' -> TkTypeFamilyInstance
+     't' -> TkTypeFamily
+     'T' -> TkTypeFamilyInstance
      'd' -> TkDataTypeFamily
      'D' -> TkDataTypeFamilyInstance
      'I' -> TkForeignImport
