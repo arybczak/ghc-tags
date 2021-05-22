@@ -1,6 +1,9 @@
-# ghc-tags-1.3 (2021-05-??)
+# ghc-tags-1.3 (2021-05-23)
 * Properly escape ex mode search commands.
 * Fix parsing of generated ctags file.
+* Remove non-ascii kind symbols (ctags).
+* Make generation of Ex mode search commands optional (ctags).
+* Don't check stored mtimes if there are no tags.
 
 # ghc-tags-1.2 (2021-05-22)
 * Fix sorting of ctags.

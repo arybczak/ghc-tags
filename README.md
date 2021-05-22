@@ -3,8 +3,11 @@
 [![Build Status](https://github.com/arybczak/ghc-tags/workflows/Haskell-CI/badge.svg?branch=master)](https://github.com/arybczak/ghc-tags/actions?query=branch%3Amaster)
 [![Hackage](https://img.shields.io/hackage/v/ghc-tags.svg)](https://hackage.haskell.org/package/ghc-tags)
 
-A command line tool that generates etags (Emacs) and ctags (Vim and other
-editors) for efficient code navigation (jump to definition).
+A command line tool that generates etags
+([Emacs](https://www.gnu.org/software/emacs)) and ctags
+([Vim](https://www.vim.org), [VSCode](https://code.visualstudio.com) with
+[ctagsx](https://marketplace.visualstudio.com/items?itemName=jtanx.ctagsx) etc.)
+for efficient code navigation (jump to definition).
 
 Main features:
 * Leverages GHC API to obtain accurate information.
