@@ -190,10 +190,15 @@ main = do
 
     initWorkerData :: Args -> Int -> IO WorkerData
     initWorkerData args threads = do
-      wdTags  <- newMVar =<< case aTagType args of
+      tags@DirtyTags{dtTags} <- case aTagType args of
         ETag -> readTags SingETag (aTagFile args)
         CTag -> readTags SingCTag (aTagFile args)
-      wdTimes <- newMVar =<< readTimes (timesFile args)
+      -- If tags are empty there is no point looking at mtimes.
+      mtimes <- if Map.null dtTags
+        then pure Map.empty
+        else readTimes (timesFile args)
+      wdTags  <- newMVar tags
+      wdTimes <- newMVar mtimes
       wdQueue <- newTBQueueIO (fromIntegral threads)
       pure WorkerData{..}
 
