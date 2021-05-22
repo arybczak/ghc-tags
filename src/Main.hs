@@ -346,8 +346,8 @@ cleanupTags DirtyTags{..} = do
              )
     ignoreSimilarClose tags = tags
 
--- | Convert 'tagAddress' of CTags to an ex command as editors such as Kate or
--- VSCode don't support jumping to a line number and require a line match.
+-- | Convert 'tagAddress' of CTags to an ex mode command as editors such as Kate
+-- or VS Code don't support jumping to a line number and require a line match.
 addExCommands :: TagFileName -> [CTag] -> IO (Maybe [CTag])
 addExCommands file tags = do
   let path = T.unpack $ getTagFileName file
@@ -364,7 +364,8 @@ addExCommands file tags = do
       TagCommand{}        -> Just tag
       TagLine lineNo      -> do
         line <- fileLines V.!? (lineNo - 1)
-        let exCommand = mconcat ["/^" , T.decodeUtf8 line, "$/"]
+        -- Ex mode forward search command. Slashes need to be escaped.
+        let exCommand = T.concat ["/^", T.replace "/" "\\/" $ T.decodeUtf8 line, "$/"]
         pure tag { tagAddr = TagCommand $ ExCommand exCommand }
 
 -- | Add file offsets to etags from a specific file.

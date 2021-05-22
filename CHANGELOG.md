@@ -1,3 +1,7 @@
+# ghc-tags-1.3 (2021-05-??)
+* Properly escape ex mode search commands.
+* Fix parsing of generated ctags file.
+
 # ghc-tags-1.2 (2021-05-22)
 * Fix sorting of ctags.
 * Express addresses of ctags as ex commands.

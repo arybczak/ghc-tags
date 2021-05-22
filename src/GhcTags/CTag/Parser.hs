@@ -12,13 +12,12 @@ import           Control.Applicative (many, (<|>))
 import           Control.DeepSeq (NFData)
 import           Data.Attoparsec.Text  (Parser, (<?>))
 import qualified Data.Attoparsec.Text  as AT
-import           Data.Functor (void, ($>))
+import           Data.Functor (($>))
 import           qualified Data.Map.Strict as Map
 import           Data.Text          (Text)
 import qualified Data.Text          as Text
 
 import           GhcTags.Tag
-import qualified GhcTags.Utils as Utils
 import           GhcTags.CTag.Header
 import           GhcTags.CTag.Utils
 
@@ -42,37 +41,31 @@ parseTag =
     <*> parseFileName
     <*  separator
 
-    -- includes an optional ';"' separator
     <*> parseTagAddress
 
-    <*> (  -- kind field followed by list of fields or end of line, e.g.
-           -- '(TagField, CTagFields)'.
-              ((,) <$> ( separator *> parseKindField )
-                   <*> ( separator *> parseFields <* endOfLine
-                         <|>
-                         endOfLine $> mempty)
-                       )
-
-          -- kind encoded as a single letter, followed by a list
-          -- of fields or end of line.
-          <|> (,) <$> ( separator *> (charToTagKind <$> AT.satisfy notTabOrNewLine) )
-                  <*> ( separator *> parseFields <* endOfLine
-                        <|>
-                        endOfLine $> mempty
+    <*> (  -- kind followed by list of fields or end of line
+              (,) <$ AT.string ";\""
+                  <*> ( separator *> ( parseKindField
+                                       <|>
+                                       charToTagKind <$> AT.satisfy notTabOrNewLine
+                                     )
                       )
+                  <*> fieldsInLine
 
           -- list of fields (kind field might be later, but don't check it, we
           -- always format it as the first field) or end of line.
-          <|> (NoKind, )
-                <$> ( separator *> parseFields <* endOfLine
-                      <|>
-                      endOfLine $> mempty
-                    )
+          <|> (NoKind, ) <$ AT.string ";\""
+                         <*> fieldsInLine
 
           <|> endOfLine $> (NoKind, mempty)
         )
 
   where
+    fieldsInLine :: Parser CTagFields
+    fieldsInLine = separator *> parseFields <* endOfLine
+                   <|>
+                   endOfLine $> mempty
+
     separator :: Parser Char
     separator = AT.char '\t'
 
@@ -83,32 +76,25 @@ parseTag =
     parseFileName :: Parser TagFileName
     parseFileName = TagFileName <$> AT.takeWhile (/= '\t')
 
-    parseExCommand :: Parser ExCommand
-    parseExCommand = (\x -> ExCommand $ Text.take (Text.length x - 1) x)
-                 <$> AT.scan "" go
-                 <*  AT.anyChar
+    parseExSearchCommand :: Parser ExCommand
+    parseExSearchCommand = ExCommand <$> AT.scan (Nothing, '\0', '\\') go
       where
-        -- go until either eol or ';"' sequence is found.
-        go :: String -> Char -> Maybe String
+        go :: (Maybe Char, Char, Char) -> Char -> Maybe (Maybe Char, Char, Char)
+        go (Nothing, c0, c1) delim
+          -- Support both forward and backward searches.
+          | delim == '/' || delim == '?' = go (Just delim, c0, c1) delim
+          | otherwise                    = Nothing
 
-        go !s c  | -- eol
-                   take (length Utils.endOfLine) (c : s)
-                     == reverse Utils.endOfLine
-                              = Nothing
-
-                 | -- ';"' sequence
-                   l == "\";" = Nothing
-
-                 | otherwise  = Just l
-          where
-            l = take 2 (c : s)
+        go (jdelim@(Just delim), c0, c1) c2
+          -- Continue until the next unescaped delimiter.
+          | c0 /= '\\' && c1 == delim = Nothing
+          | otherwise                 = Just (jdelim, c1, c2)
 
     -- We only parse `TagLine` or `TagCommand`.
     parseTagAddress :: Parser CTagAddress
-    parseTagAddress =
-          TagLine <$> AT.decimal <* (endOfLine <|> void (AT.string ";\""))
-      <|>
-          TagCommand <$> parseExCommand
+    parseTagAddress = TagLine <$> AT.decimal
+                      <|>
+                      TagCommand <$> parseExSearchCommand
 
     parseKindField :: Parser CTagKind
     parseKindField =
