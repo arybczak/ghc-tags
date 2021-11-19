@@ -10,9 +10,10 @@ import GHC.Driver.Session
 import GHC.LanguageExtensions
 import GHC.Settings
 import System.Directory
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as K
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Map.Strict as Map
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Yaml as Y
 import qualified Data.Yaml.Pretty as Y
@@ -101,7 +102,7 @@ instance ToJSON ProjectConfig where
 
 instance FromJSON ProjectConfig where
   parseJSON (Object v) = do
-    checkUnknownKeys $ HM.keys v
+    checkUnknownKeys . map K.toText $ K.keys v
     pcSourcePaths  <- def pcSourcePaths  <$> v .:! "source_paths"
     pcExcludePaths <- def pcExcludePaths <$> v .:! "exclude_paths"
     pcLanguage     <- def pcLanguage     <$> explicitParseFieldMaybe'
