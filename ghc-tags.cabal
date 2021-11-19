@@ -49,7 +49,6 @@ executable ghc-tags
                      , temporary
                      , text
                      , time
-                     , unordered-containers
                      , vector
                      , yaml
 
