@@ -11,17 +11,17 @@ import Data.ByteString (ByteString)
 import Data.Maybe
 import GHC.Data.Bag
 import GHC.Data.FastString
-import GHC.Hs (HsModule(..))
+import GHC.Hs (HsModule(..), NoExtField(..))
 import GHC.Hs.Binds
 import GHC.Hs.Decls hiding (famResultKindSignature)
 import GHC.Hs.Expr
 import GHC.Hs.Extension
 import GHC.Hs.ImpExp
 import GHC.Hs.Type hiding (hsSigWcType)
-import GHC.Types.Basic
-import GHC.Types.FieldLabel
+import GHC.Parser.Annotation
 import GHC.Types.Name (nameOccName, occNameFS)
 import GHC.Types.Name.Reader
+import GHC.Types.SourceText
 import GHC.Types.SrcLoc
 import GHC.Unit.Module.Name
 
@@ -71,7 +71,7 @@ data GhcTag = GhcTag {
 
 -- | Check if an identifier is exported.
 --
-isExported :: Maybe [IE GhcPs] -> Located RdrName -> Bool
+isExported :: Maybe [IE GhcPs] -> LocatedN RdrName -> Bool
 isExported Nothing   _name = True
 isExported (Just ies) (L _ name) =
     any (\ie -> listToMaybe (ieNames ie) == Just name) ies
@@ -79,8 +79,8 @@ isExported (Just ies) (L _ name) =
 -- | Check if a class member or a type constructors is exported.
 --
 isMemberExported :: Maybe [IE GhcPs]
-                 -> Located RdrName -- member name / constructor name
-                 -> Located RdrName -- type class name / type constructor name
+                 -> LocatedN RdrName -- member name / constructor name
+                 -> LocatedN RdrName -- type class name / type constructor name
                  -> Bool
 isMemberExported Nothing    _memberName _className = True
 isMemberExported (Just ies) memberName  className  = any go ies
@@ -93,31 +93,30 @@ isMemberExported (Just ies) memberName  className  = any go ies
 
     go (IEThingAll _ (L _ n)) = ieWrappedName n == unLoc className
 
-    go (IEThingWith _ _ IEWildcard{} _ _) = True
+    go (IEThingWith _ _ IEWildcard{} _) = True
 
-    go (IEThingWith _ (L _ n) NoIEWildcard ns lfls) =
+    go (IEThingWith _ (L _ n) NoIEWildcard ns) =
             ieWrappedName n == unLoc className
-         && (isInWrappedNames || isInFieldLbls)
+         && isInWrappedNames
       where
         -- the 'NameSpace' does not agree between things that are in the 'IE'
         -- list and passed member or type class names (constructor / type
         -- constructor names, respectively)
         isInWrappedNames = any ((== occNameFS (rdrNameOcc (unLoc memberName))) . occNameFS . rdrNameOcc . ieWrappedName . unLoc) ns
-        isInFieldLbls    = any ((== occNameFS (rdrNameOcc (unLoc memberName))) . occNameFS . rdrNameOcc . flSelector. unLoc) lfls
 
     go _ = False
 
 
 -- | Create a 'GhcTag', effectively a smart constructor.
 --
-mkGhcTag :: Located RdrName
+mkGhcTag :: LocatedN RdrName
          -- ^ @RdrName ~ IdP GhcPs@ it *must* be a name of a top level identifier.
          -> GhcTagKind
          -- ^ tag's kind
          -> Bool
          -- ^ is term exported
          -> GhcTag
-mkGhcTag (L gtSrcSpan rdrName) gtKind gtIsExported =
+mkGhcTag (L SrcSpanAnn { locA = gtSrcSpan } rdrName) gtKind gtIsExported =
     case rdrName of
       Unqual occName ->
         GhcTag { gtTag = bytesFS (occNameFS occName)
@@ -180,9 +179,9 @@ getGhcTags (L _ HsModule { hsmodName, hsmodDecls, hsmodExports }) =
     mies :: Maybe [IE GhcPs]
     mies = map unLoc . unLoc <$> hsmodExports
 
-    mkModNameTag :: Located ModuleName -> GhcTag
-    mkModNameTag (L gtSrcSpan modName) =
-      GhcTag { gtSrcSpan
+    mkModNameTag :: LocatedA ModuleName -> GhcTag
+    mkModNameTag (L l modName) =
+      GhcTag { gtSrcSpan = locA l
              , gtTag = bytesFS $ moduleNameFS modName
              , gtKind = GtkModule
              , gtIsExported = True
@@ -203,7 +202,7 @@ hsDeclsToGhcTags mies = foldr go []
               -- ^ declaration's location; it is useful when the term does not
               -- contain useful inforamtion (e.g. code generated from template
               -- haskell splices).
-              ->  Located RdrName
+              -> LocatedN RdrName
               --  ^ @RdrName ~ IdP GhcPs@ it *must* be a name of a top level
               --  identifier.
               -> GhcTagKind
@@ -214,8 +213,8 @@ hsDeclsToGhcTags mies = foldr go []
 
     mkGhcTagForMember :: SrcSpan
                       -- ^ declartion's 'SrcSpan'
-                      -> Located RdrName -- member name
-                      -> Located RdrName -- class name
+                      -> LocatedN RdrName -- member name
+                      -> LocatedN RdrName -- class name
                       -> GhcTagKind
                       -> GhcTag
     mkGhcTagForMember decLoc memberName className kind =
@@ -225,7 +224,7 @@ hsDeclsToGhcTags mies = foldr go []
     -- Main routine which traverse all top level declarations.
     --
     go :: LHsDecl GhcPs -> [GhcTag] -> [GhcTag]
-    go (L decLoc hsDecl) tags = case hsDecl of
+    go (L SrcSpanAnn { locA = decLoc } hsDecl) tags = case hsDecl of
 
       -- type or class declaration
       TyClD _ tyClDecl ->
@@ -271,8 +270,8 @@ hsDeclsToGhcTags mies = foldr go []
             -- associated type defaults (data type families, type families
             -- (open or closed)
             ++ foldr
-                (\(L _ decl@(TyFamInstDecl (HsIB { hsib_body = tyFamDeflEqn }))) tags' ->
-                    case tyFamDeflEqn of
+                (\(L _ decl@(TyFamInstDecl { tfid_eqn })) tags' ->
+                    case tfid_eqn of
                       FamEqn { feqn_rhs = L _ hsType } ->
                         case hsTypeTagName hsType of
                           -- TODO: add a `default` field
@@ -296,8 +295,8 @@ hsDeclsToGhcTags mies = foldr go []
                           , cid_binds, cid_sigs } ->
                   case cid_poly_ty of
                     -- TODO: @hsbib_body :: LHsType GhcPs@
-                    HsIB { hsib_body } ->
-                      case mkLHsTypeTag decLoc hsib_body of
+                    L _ HsSig { sig_body } ->
+                      case mkLHsTypeTag decLoc sig_body of
                         Nothing  ->       tags'
                         Just tag -> tag : tags'
                 where
@@ -368,23 +367,23 @@ hsDeclsToGhcTags mies = foldr go []
     -- generate tags of all constructors of a type
     --
     mkConsTags :: SrcSpan
-               -> Located RdrName
+               -> LocatedN RdrName
                -- name of the type
                -> ConDecl GhcPs
                -- constructor declaration
                -> [GhcTag]
 
-    mkConsTags decLoc tyName con@ConDeclGADT { con_names, con_args } =
+    mkConsTags decLoc tyName con@ConDeclGADT { con_names, con_g_args } =
          (\n -> mkGhcTagForMember decLoc n tyName (GtkGADTConstructor con))
          `map` con_names
-      ++ mkHsConDeclDetails decLoc tyName con_args
+      ++ mkHsConDeclGADTDetails decLoc tyName con_g_args
 
     mkConsTags decLoc tyName con@ConDeclH98  { con_name, con_args } =
         mkGhcTagForMember decLoc con_name tyName
           (GtkDataConstructor con)
-      : mkHsConDeclDetails decLoc tyName con_args
+      : mkHsConDeclH98Details decLoc tyName con_args
 
-    mkHsLocalBindsTags :: SrcSpan -> HsLocalBindsLR GhcPs GhcPs -> [GhcTag]
+    mkHsLocalBindsTags :: SrcSpan -> HsLocalBinds GhcPs -> [GhcTag]
     mkHsLocalBindsTags decLoc (HsValBinds _ (ValBinds _ hsBindsLR sigs)) =
          -- where clause bindings
          concatMap (mkHsBindLRTags decLoc . unLoc) (bagToList hsBindsLR)
@@ -392,8 +391,12 @@ hsDeclsToGhcTags mies = foldr go []
 
     mkHsLocalBindsTags _ _ = []
 
-    mkHsConDeclDetails :: SrcSpan -> Located RdrName -> HsConDeclDetails GhcPs -> [GhcTag]
-    mkHsConDeclDetails decLoc tyName (RecCon (L _ fields)) =
+    mkHsConDeclGADTDetails
+      :: SrcSpan
+      -> LocatedN RdrName
+      -> HsConDeclGADTDetails GhcPs
+      -> [GhcTag]
+    mkHsConDeclGADTDetails decLoc tyName (RecConGADT (L _ fields)) =
         foldr f [] fields
       where
         f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
@@ -402,9 +405,23 @@ hsDeclsToGhcTags mies = foldr go []
         g :: LFieldOcc GhcPs -> GhcTag
         g (L _ FieldOcc { rdrNameFieldOcc }) =
             mkGhcTagForMember decLoc rdrNameFieldOcc tyName GtkRecordField
+    mkHsConDeclGADTDetails _ _ _ = []
 
-    mkHsConDeclDetails _ _ _ = []
+    mkHsConDeclH98Details
+      :: SrcSpan
+      -> LocatedN RdrName
+      -> HsConDeclH98Details GhcPs
+      -> [GhcTag]
+    mkHsConDeclH98Details decLoc tyName (RecCon (L _ fields)) =
+        foldr f [] fields
+      where
+        f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
+        f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
 
+        g :: LFieldOcc GhcPs -> GhcTag
+        g (L _ FieldOcc { rdrNameFieldOcc }) =
+            mkGhcTagForMember decLoc rdrNameFieldOcc tyName GtkRecordField
+    mkHsConDeclH98Details _ _ _ = []
 
     mkHsBindLRTags :: SrcSpan
                    -- ^ declaration's 'SrcSpan'
@@ -412,7 +429,7 @@ hsDeclsToGhcTags mies = foldr go []
                    -> [GhcTag]
     mkHsBindLRTags decLoc hsBind = case hsBind of
         FunBind { fun_id, fun_matches } ->
-          let binds = map (unLoc . grhssLocalBinds . m_grhss . unLoc)
+          let binds = map (grhssLocalBinds . m_grhss . unLoc)
                     . unLoc
                     . mg_alts
                     $ fun_matches
@@ -426,14 +443,16 @@ hsDeclsToGhcTags mies = foldr go []
         -- ```
         PatBind {} -> []
 
-        VarBind { var_id, var_rhs = L srcSpan _ } -> [mkGhcTag' decLoc (L srcSpan var_id) GtkTerm]
+        -- According to the GHC documentation VarBinds are introduced by the
+        -- type checker, so ghc-tags will never encounter them.
+        VarBind {} -> []
 
         -- abstraction binding is only used after translation
         AbsBinds {} -> []
 
         PatSynBind _ PSB { psb_id } -> [mkGhcTag' decLoc psb_id GtkPatternSynonym]
 
-    mkClsMemberTags :: SrcSpan -> Located RdrName -> Sig GhcPs -> [GhcTag]
+    mkClsMemberTags :: SrcSpan -> LocatedN RdrName -> Sig GhcPs -> [GhcTag]
     mkClsMemberTags decLoc clsName (TypeSig   _ lhs hsSigWcType) =
       (\n -> mkGhcTagForMember decLoc n clsName (GtkTypeSignature hsSigWcType)) `map` lhs
     mkClsMemberTags decLoc clsName (PatSynSig _ lhs hsSigWcType) =
@@ -477,7 +496,7 @@ hsDeclsToGhcTags mies = foldr go []
     mkFamilyDeclTags :: SrcSpan
                      -> FamilyDecl GhcPs
                      -- ^ declaration's 'SrcSpan'
-                     -> Maybe (Located RdrName)
+                     -> Maybe (LocatedN RdrName)
                      -- if this type family is associate, pass the name of the
                      -- associated class
                      -> Maybe GhcTag
@@ -508,7 +527,7 @@ hsDeclsToGhcTags mies = foldr go []
       <$> hsTypeTagName hsType
 
 
-    hsTypeTagName :: HsType GhcPs -> Maybe (Located RdrName)
+    hsTypeTagName :: HsType GhcPs -> Maybe (LocatedN RdrName)
     hsTypeTagName hsType =
       case hsType of
         HsForAllTy {hst_body} -> hsTypeTagName (unLoc hst_body)
@@ -529,8 +548,7 @@ hsDeclsToGhcTags mies = foldr go []
     mkDataFamInstDeclTag :: SrcSpan -> DataFamInstDecl GhcPs -> [GhcTag]
     mkDataFamInstDeclTag decLoc DataFamInstDecl { dfid_eqn } =
       case dfid_eqn of
-
-        HsIB { hsib_body = FamEqn { feqn_tycon, feqn_rhs } } ->
+        FamEqn { feqn_tycon, feqn_rhs } ->
           case feqn_rhs of
             HsDataDefn { dd_cons, dd_kindSig } ->
                 mkGhcTag' decLoc feqn_tycon
@@ -545,7 +563,7 @@ hsDeclsToGhcTags mies = foldr go []
     mkTyFamInstDeclTag decLoc decl@TyFamInstDecl { tfid_eqn } =
       case tfid_eqn of
         -- TODO: should we check @feqn_rhs :: LHsType GhcPs@ as well?
-        HsIB { hsib_body = FamEqn { feqn_tycon } } ->
+        FamEqn { feqn_tycon } ->
           Just $ mkGhcTag' decLoc feqn_tycon (GtkTypeFamilyInstance decl)
 
 --

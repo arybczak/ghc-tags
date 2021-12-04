@@ -28,12 +28,12 @@ flag ghc-lib
 executable ghc-tags
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-A4m
 
-  if !flag(ghc-lib) && impl(ghc == 9.0.*)
+  if !flag(ghc-lib) && impl(ghc == 9.2.*)
      build-depends:    ghc, ghc-boot
   else
-     build-depends:    ghc-lib == 9.0.*
+     build-depends:    ghc-lib == 9.2.*
 
-  build-depends:       base >=4.14 && <4.16
+  build-depends:       base >=4.14 && <4.17
                      , aeson >= 2.0.0.0
                      , async
                      , attoparsec

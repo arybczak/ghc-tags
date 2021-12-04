@@ -7,6 +7,7 @@ module GhcTags.GhcCompat
 import Data.IORef
 import GHC.Data.FastString
 import GHC.Data.StringBuffer
+import GHC.Driver.Config
 import GHC.Driver.Main
 import GHC.Driver.Monad
 import GHC.Driver.Session
@@ -16,7 +17,6 @@ import GHC.Paths
 import GHC.Platform
 import GHC.Settings
 import GHC.Settings.Config
-import GHC.Settings.Platform
 import GHC.Settings.Utils
 import GHC.SysTools
 import GHC.SysTools.BaseDir
@@ -26,7 +26,6 @@ import GHC.Utils.Fingerprint
 import System.Directory
 import System.FilePath
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified GHC
 import qualified GHC.Parser as Parser
 
@@ -38,7 +37,7 @@ parseModule
 parseModule filename flags buffer = unP Parser.parseModule parseState
   where
     location = mkRealSrcLoc (mkFastString filename) 1 1
-    parseState = mkPState flags buffer location
+    parseState = initParserState (initParserOpts flags) buffer location
 
 runGhc :: Ghc a -> IO a
 runGhc m = do
@@ -62,23 +61,15 @@ threadSafeInitDynFlags dflags = do
       -- dynamically or not.
       platformCanGenerateDynamicToo
           = platformOS (targetPlatform dflags) /= OSMinGW32
-  refCanGenerateDynamicToo <- newIORef platformCanGenerateDynamicToo
-  refNextTempSuffix <- newIORef 0
-  refFilesToClean <- newIORef emptyFilesToClean
-  refDirsToClean <- newIORef Map.empty
-  refGeneratedDumps <- newIORef Set.empty
+  refDynamicTooFailed <- newIORef (not platformCanGenerateDynamicToo)
   refRtldInfo <- newIORef Nothing
   refRtccInfo <- newIORef Nothing
   wrapperNum <- newIORef emptyModuleEnv
   pure dflags
-    { canGenerateDynamicToo = refCanGenerateDynamicToo
-    , nextTempSuffix = refNextTempSuffix
-    , filesToClean   = refFilesToClean
-    , dirsToClean    = refDirsToClean
-    , generatedDumps = refGeneratedDumps
-    , nextWrapperNum = wrapperNum
-    , rtldInfo       = refRtldInfo
-    , rtccInfo       = refRtccInfo
+    { dynamicTooFailed = refDynamicTooFailed
+    , nextWrapperNum   = wrapperNum
+    , rtldInfo         = refRtldInfo
+    , rtccInfo         = refRtccInfo
     }
 
 -- | Stripped version of 'GHC.Settings.IO.initSettings' that ignores the
@@ -111,12 +102,12 @@ compatInitSettings top_dir = do
   -- just partially applying those functions and throwing 'Left's; they're
   -- written in a very portable style to keep ghc-boot light.
   let getSetting key = either error pure $
-        getFilePathSetting0 top_dir settingsFile mySettings key
+        getRawFilePathSetting top_dir settingsFile mySettings key
       getToolSetting :: String -> IO String
       getToolSetting key = expandToolDir mtool_dir <$> getSetting key
       getBooleanSetting :: String -> IO Bool
       getBooleanSetting key = either error pure $
-        getBooleanSetting0 settingsFile mySettings key
+        getRawBooleanSetting settingsFile mySettings key
   myExtraGccViaCFlags <- getSetting "GCC extra via C opts"
   -- On Windows, mingw is distributed with GHC,
   -- so we look in TopDir/../mingw/bin,
@@ -252,7 +243,6 @@ compatInitSettings top_dir = do
 
     -- Lots of uninitialized fields here.
     , sPlatformMisc = PlatformMisc {}
-    , sPlatformConstants = PlatformConstants { pc_DYNAMIC_BY_DEFAULT = False }
 
     , sRawSettings    = settingsList
     }
@@ -264,18 +254,15 @@ compatGetTargetPlatform
 compatGetTargetPlatform settingsFile mySettings = do
   let
     readSetting :: (Show a, Read a) => String -> Either String a
-    readSetting = readSetting0 settingsFile mySettings
+    readSetting = readRawSetting settingsFile mySettings
 
-  targetArch <- readSetting "target arch"
-  targetOS <- readSetting "target os"
+  targetArchOS <- getTargetArchOS settingsFile mySettings
   targetWordSize <- readSetting "target word size"
 
   pure $ Platform
-    { platformMini = PlatformMini
-      { platformMini_arch = targetArch
-      , platformMini_os = targetOS
-      }
+    { platformArchOS = targetArchOS
     , platformWordSize = targetWordSize
+    , platform_constants = Nothing
     -- below is irrelevant
     , platformByteOrder = LittleEndian
     , platformUnregisterised = True

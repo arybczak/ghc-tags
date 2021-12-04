@@ -37,7 +37,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 -- GHC imports
-import           GHC.Driver.Session (DynFlags)
+import           GHC.Driver.Session (DynFlags, initSDocContext)
 import           GHC.Data.FastString (bytesFS)
 
 import           GHC.Types.SrcLoc
@@ -447,8 +447,8 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         Text.intercalate " " -- remove all line breaks, tabs and multiple spaces
       . Text.words
       . Text.pack
-      $ Out.renderWithStyle
-          (Out.initSDocContext
+      $ Out.renderWithContext
+          (initSDocContext
             dynFlags
             (Out.setStyleColoured False
               $ Out.mkErrStyle Out.neverQualify))

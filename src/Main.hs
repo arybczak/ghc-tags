@@ -13,13 +13,17 @@ import Data.List
 import Data.Maybe (mapMaybe)
 import Data.Time
 import Data.Time.Format.ISO8601
+import GHC (GhcException, setSessionDynFlags)
 import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
 import GHC.Data.StringBuffer
+import GHC.Driver.Env.Types
 import GHC.Driver.Monad
+import GHC.Driver.Pipeline
+import GHC.Driver.Ppr
 import GHC.Driver.Session
-import GHC.Driver.Types (HscEnv(..))
 import GHC.Hs
+import GHC.Parser.Errors.Ppr
 import GHC.Parser.Lexer
 import GHC.Types.SrcLoc
 import GHC.Utils.Error
@@ -39,9 +43,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
-import qualified GHC
-import qualified GHC.Driver.Pipeline as DP
-import qualified GHC.Utils.Outputable as Out
 
 import GhcTags
 import GhcTags.Config.Args
@@ -102,7 +103,7 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
     -- Extract tags from a given file and update the TagMap.
     worker :: IO ()
     worker = runGhc $ do
-      void $ GHC.setSessionDynFlags . adjustDynFlags pc =<< getSessionDynFlags
+      void $ setSessionDynFlags . adjustDynFlags pc =<< getSessionDynFlags
       env <- getSession
       liftIO . fix $ \loop -> atomically (readTBQueue $ wdQueue wd) >>= \case
         Nothing                    -> pure ()
@@ -110,7 +111,7 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
       where
         processFile :: HscEnv -> FilePath -> HsFileType -> UTCTime -> IO ()
         processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
-          handle showErr $ DP.preprocess env hsFile Nothing Nothing >>= \case
+          handle showErr $ preprocess env hsFile Nothing Nothing >>= \case
             Left errs -> report (hsc_dflags env) errs
             Right (flags, file) -> do
               --when (file /= rawFile) $ do
@@ -118,13 +119,13 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
               buffer <- hGetStringBuffer file
               case parseModule file flags buffer of
                 PFailed pstate -> do
-                  let (wrns, errs) = getMessages pstate flags
-                  report flags wrns
-                  report flags errs
+                  let (wrns, errs) = getMessages pstate
+                  report flags (pprWarning <$> wrns)
+                  report flags (pprError <$> errs)
                 POk pstate hsModule -> do
-                  let (wrns, errs) = getMessages pstate flags
-                  report flags wrns
-                  report flags errs
+                  let (wrns, errs) = getMessages pstate
+                  report flags (pprWarning <$> wrns)
+                  report flags (pprError <$> errs)
                   when (isEmptyBag errs) $ do
                     modifyMVar_ (wdTags wd) $ \tags -> do
                       pure $! updateTagsWith flags hsModule tags
@@ -135,10 +136,10 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
             showErr :: GHC.GhcException -> IO ()
             showErr = putStrLn . show
 
-            report :: DynFlags -> Bag ErrMsg -> IO ()
+            report :: DynFlags -> Bag (MsgEnvelope DecoratedSDoc) -> IO ()
             report flags msgs =
-              sequence_ [ putStrLn $ Out.showSDoc flags msg
-                        | msg <- pprErrMsgBagWithLoc msgs
+              sequence_ [ putStrLn $ showSDoc flags msg
+                        | msg <- pprMsgEnvelopeBagWithLoc msgs
                         ]
 
         -- Alex and Hsc files need to be preprocessed before going into GHC.
