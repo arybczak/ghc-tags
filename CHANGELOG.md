@@ -1,3 +1,9 @@
+# ghc-tags-1.4 (2022-02-28)
+* Add support for GHC 9.2.
+* Require aeson >= 2.0.
+* Enable `BlockArguments`, `ExplicitNamespaces`, `GADTSyntax`,
+  `NumericUnderscores`, `PatternSynonyms` and `UnicodeSyntax` by default.
+
 # ghc-tags-1.3 (2021-05-23)
 * Properly escape ex mode search commands.
 * Fix parsing of generated ctags file.
