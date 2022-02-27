@@ -37,11 +37,17 @@ defaultProjectConfig = ProjectConfig
                      ]
   , pcLanguage     = Haskell2010
   , pcExtensions   = [ BangPatterns
+                     , BlockArguments
                      , ExplicitForAll
+                     , ExplicitNamespaces
+                     , GADTSyntax
                      , LambdaCase
                      , MultiWayIf
+                     , NumericUnderscores
                      , OverloadedLabels
+                     , PatternSynonyms
                      , TypeApplications
+                     , UnicodeSyntax
                      ]
   , pcCppIncludes = []
   , pcCppOptions  = []
