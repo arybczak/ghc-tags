@@ -269,7 +269,7 @@ readTags tt tagsFile = doesFileExist tagsFile >>= \case
     case res of
       Right (Right (headers, tags)) ->
         -- full evaluation decreases performance variation
-        deepseq headers . deepseq tags $ pure DirtyTags
+        deepseq headers `seq` deepseq tags `seq` pure DirtyTags
         { dtKind = tt
         , dtHeaders = headers
         , dtTags = Map.map (Updated False) tags
