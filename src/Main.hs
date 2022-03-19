@@ -79,15 +79,16 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
             paths <- map (path </>) <$> listDirectory path
             processFiles paths
           False -> F.forM_ (takeExtension path `lookup` haskellExts) $ \hsType -> do
-            -- Source files are scanned and updated only if their mtime changed or
-            -- it's not recorded.
-            time <- getModificationTime path
-            updateTags <- withMVar (wdTimes wd) $ \times -> pure $
-              case TagFileName (T.pack path) `Map.lookup` times of
-                Just (Updated _ oldTime) -> oldTime < time
-                Nothing                  -> True
-            when updateTags $ do
-              atomically . writeTBQueue (wdQueue wd) $ Just (path, hsType, time)
+            showIOError $ do
+              -- Source files are scanned and updated only if their mtime changed or
+              -- it's not recorded.
+              time <- getModificationTime path
+              updateTags <- withMVar (wdTimes wd) $ \times -> pure $
+                case TagFileName (T.pack path) `Map.lookup` times of
+                  Just (Updated _ oldTime) -> oldTime < time
+                  Nothing                  -> True
+              when updateTags $ do
+                atomically . writeTBQueue (wdQueue wd) $ Just (path, hsType, time)
       where
         haskellExts = [ (".hs",      HsFile)
                       , (".hs-boot", HsBootFile)
@@ -100,6 +101,9 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
     terminateWorkers = atomically $ do
       replicateM_ threads $ writeTBQueue (wdQueue wd) Nothing
 
+    showIOError m = m `catch` \(e::IOError) -> do
+      putStrLn $ "Error: " ++ show e
+
     -- Extract tags from a given file and update the TagMap.
     worker :: IO ()
     worker = runGhc $ do
@@ -107,7 +111,9 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
       env <- getSession
       liftIO . fix $ \loop -> atomically (readTBQueue $ wdQueue wd) >>= \case
         Nothing                    -> pure ()
-        Just (file, hsType, mtime) -> processFile env file hsType mtime >> loop
+        Just (file, hsType, mtime) -> do
+          showIOError $ processFile env file hsType mtime
+          loop
       where
         processFile :: HscEnv -> FilePath -> HsFileType -> UTCTime -> IO ()
         processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
