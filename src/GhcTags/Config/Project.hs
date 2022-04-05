@@ -38,6 +38,7 @@ defaultProjectConfig = ProjectConfig
   , pcLanguage     = Haskell2010
   , pcExtensions   = [ BangPatterns
                      , BlockArguments
+                     , CApiFFI
                      , ExplicitForAll
                      , ExplicitNamespaces
                      , GADTSyntax
