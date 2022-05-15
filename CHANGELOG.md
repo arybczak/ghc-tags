@@ -1,4 +1,4 @@
-# ghc-tags-1.5 (2022-??-??)
+# ghc-tags-1.5 (2022-05-15)
 * Handle errors more gracefully.
 * Enable `CApiFFI` by default.
 
