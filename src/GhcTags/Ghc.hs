@@ -44,7 +44,7 @@ data GhcTagKind
     | GtkTypeKindSignature             (LHsSigType GhcPs)
     | GtkPatternSynonym
     | GtkTypeClass
-    | GtkTypeClassMember               (HsType GhcPs)
+    | GtkTypeClassMember               (HsWildCardBndrs GhcPs (LHsSigType GhcPs))
     | GtkTypeClassInstance             (HsType GhcPs)
     | GtkTypeFamily             (Maybe ([HsTyVarBndr () GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
     | GtkTypeFamilyInstance     (TyFamInstDecl GhcPs)
@@ -453,18 +453,11 @@ hsDeclsToGhcTags mies = foldr go []
         PatSynBind _ PSB { psb_id } -> [mkGhcTag' decLoc psb_id GtkPatternSynonym]
 
     mkClsMemberTags :: SrcSpan -> LocatedN RdrName -> Sig GhcPs -> [GhcTag]
-    mkClsMemberTags decLoc clsName (TypeSig   _ lhs hsSigWcType) =
-      (\n -> mkGhcTagForMember decLoc n clsName (GtkTypeSignature hsSigWcType)) `map` lhs
-    mkClsMemberTags decLoc clsName (PatSynSig _ lhs hsSigWcType) =
-      (\n -> mkGhcTagForMember decLoc n clsName $
-        GtkTypeSignature HsWC { hswc_ext = NoExtField
-                              , hswc_body = hsSigWcType
-                              }) `map` lhs
     mkClsMemberTags decLoc clsName (ClassOpSig _ _ lhs hsSigWcType) =
       (\n ->  mkGhcTagForMember decLoc n clsName $
-        GtkTypeSignature HsWC { hswc_ext = NoExtField
-                              , hswc_body = hsSigWcType
-                              }) `map` lhs
+        GtkTypeClassMember HsWC { hswc_ext = NoExtField
+                                , hswc_body = hsSigWcType
+                                }) `map` lhs
     mkClsMemberTags _ _ _ = []
 
 
