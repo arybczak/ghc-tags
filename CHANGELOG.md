@@ -1,5 +1,6 @@
 # ghc-tags-1.6 (2022-??-??)
 * Handle definitions of class methods properly.
+* Enable `MagicHash`by default.
 
 # ghc-tags-1.5 (2022-05-15)
 * Handle errors more gracefully.

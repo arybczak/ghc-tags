@@ -43,6 +43,7 @@ defaultProjectConfig = ProjectConfig
                      , ExplicitNamespaces
                      , GADTSyntax
                      , LambdaCase
+                     , MagicHash
                      , MultiWayIf
                      , NumericUnderscores
                      , OverloadedLabels
