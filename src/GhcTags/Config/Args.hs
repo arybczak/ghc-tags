@@ -8,9 +8,9 @@ import GhcTags.Config.Project
 import GhcTags.Tag
 import Paths_ghc_tags (version)
 
-defaultOutputFile :: TagType -> FilePath
-defaultOutputFile CTag = "tags"
-defaultOutputFile ETag = "TAGS"
+defaultOutputFile :: TAG_KIND -> FilePath
+defaultOutputFile CTAG = "tags"
+defaultOutputFile ETAG = "TAGS"
 
 -- | Get source paths from the configuration file or command line arguments.
 data SourcePaths
@@ -19,7 +19,7 @@ data SourcePaths
   deriving Show
 
 data Args = Args
-  { aTagType      :: TagType
+  { aTagType      :: TAG_KIND
   , aTagFile      :: FilePath
   , aThreads      :: Int
   , aSourcePaths  :: SourcePaths
@@ -39,13 +39,13 @@ argsParser defaultThreads = do
               , ..
               }
   where
-    ctags :: Parser TagType
-    ctags = flag' CTag $ long "ctags"
+    ctags :: Parser TAG_KIND
+    ctags = flag' CTAG $ long "ctags"
                       <> short 'c'
                       <> help "Generate ctags"
 
-    etags :: Parser TagType
-    etags = flag' ETag $ long "etags"
+    etags :: Parser TAG_KIND
+    etags = flag' ETAG $ long "etags"
                       <> short 'e'
                       <> help "Generate etags"
 

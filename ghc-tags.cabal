@@ -32,8 +32,9 @@ executable ghc-tags
      build-depends:    ghc, ghc-boot
   else
      build-depends:    ghc-lib == 9.2.*
+                     , ghc-lib-parser
 
-  build-depends:       base >=4.14 && <4.17
+  build-depends:       base >=4.14 && <4.18
                      , aeson >= 2.0.0.0
                      , async
                      , attoparsec
@@ -43,6 +44,7 @@ executable ghc-tags
                      , directory
                      , filepath
                      , ghc-paths
+                     , ghc-tags-core >= 0.4.2.2
                      , stm
                      , optparse-applicative
                      , process
@@ -59,18 +61,7 @@ executable ghc-tags
   other-modules:       GhcTags
                        GhcTags.Config.Args
                        GhcTags.Config.Project
-                       GhcTags.Ghc
                        GhcTags.GhcCompat
-                       GhcTags.Tag
-                       GhcTags.CTag
-                       GhcTags.CTag.Header
-                       GhcTags.CTag.Parser
-                       GhcTags.CTag.Formatter
-                       GhcTags.CTag.Utils
-                       GhcTags.ETag
-                       GhcTags.ETag.Parser
-                       GhcTags.ETag.Formatter
-                       GhcTags.Utils
                        Paths_ghc_tags
 
   autogen-modules:     Paths_ghc_tags

@@ -1,0 +1,7 @@
+packages: .
+
+package ghc-tags
+  flags: +ghc-lib
+
+package ghc-tags-core
+  flags: +ghc-lib
