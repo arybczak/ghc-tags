@@ -39,6 +39,7 @@ import qualified Data.ByteString.Builder as BS
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
@@ -259,7 +260,7 @@ writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
 data DirtyTags = forall tt. DirtyTags
   { dtKind    :: SingTagType tt
   , dtHeaders :: [CTag.Header]
-  , dtTags    :: Map.Map TagFileName (Updated [Tag tt])
+  , dtTags    :: Map.Map TagFileName (Updated (Set.Set (Tag tt)))
   }
 
 data Tags = forall tt. Tags
@@ -278,8 +279,7 @@ readTags tt tagsFile = doesFileExist tagsFile >>= \case
         -- full evaluation decreases performance variation
         deepseq headers `seq` deepseq tags `seq` pure DirtyTags
         { dtKind = tt
-        , dtHeaders = headers
-        , dtTags = Map.map (Updated False) tags
+        , dtHeaders = headers , dtTags = Map.map (Updated False . Set.fromList) tags
         }
       -- reading failed
       Left err -> do
@@ -304,16 +304,23 @@ readTags tt tagsFile = doesFileExist tagsFile >>= \case
 
 updateTagsWith :: DynFlags -> Located HsModule -> DirtyTags -> DirtyTags
 updateTagsWith dflags hsModule DirtyTags{..} =
-  DirtyTags { dtTags = fileTags `Map.union` dtTags
+  DirtyTags { dtTags = Map.unionWith mergeTags fileTags dtTags
             , ..
             }
   where
+    mergeTags (Updated newUpdated newTags) (Updated oldUpdated oldTags) =
+      -- If the file was already updated, we merge tags. This supports the case
+      -- of parsing the same file multiple times with different CPP options.
+      if oldUpdated
+      then Updated newUpdated $!! newTags `Set.union` oldTags
+      else Updated newUpdated $!! newTags
+
     fileTags =
-      let tags = Map.fromListWith (++)
-               . map (second (:[]))
+      let tags = Map.fromListWith Set.union
+               . map (second Set.singleton)
                . mapMaybe (ghcTagToTag dtKind dflags)
                $ getGhcTags hsModule
-      in Map.map (Updated True) $!! tags
+      in Map.map (Updated True) tags
 
 cleanupTags :: Args -> DirtyTags -> IO Tags
 cleanupTags args DirtyTags{..} = do
@@ -324,13 +331,13 @@ cleanupTags args DirtyTags{..} = do
     -- here.
     exists <- doesFileExist path
     if | exists && updated -> do
-           let cleanedTags = ignoreSimilarClose $ sortBy compareNAK tags
+           let cleanedTags = ignoreSimilarClose . sortBy compareNAK $ Set.toList tags
            case dtKind of
              SingCTag -> if aExModeSearch args
                then addExCommands file cleanedTags
                else pure $ Just cleanedTags
              SingETag -> addFileOffsets file cleanedTags
-       | exists && not updated -> pure $ Just tags
+       | exists && not updated -> pure . Just $ Set.toList tags
        | otherwise -> pure Nothing
   newTags `deepseq` pure Tags { tKind = dtKind
                               , tHeaders = dtHeaders
