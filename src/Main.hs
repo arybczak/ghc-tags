@@ -86,8 +86,13 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
               time <- getModificationTime path
               updateTags <- withMVar (wdTimes wd) $ \times -> pure $
                 case TagFileName (T.pack path) `Map.lookup` times of
-                  Just (Updated _ oldTime) -> oldTime < time
-                  Nothing                  -> True
+                  -- If the file was already updated, it means it's eligible for
+                  -- the update with regard to its mtime, but it was already
+                  -- processed. In such case we let it through in order to
+                  -- support the case of parsing the same file multiple times
+                  -- with different CPP options.
+                  Just (Updated updated oldTime) -> updated || oldTime < time
+                  Nothing                        -> True
               when updateTags $ do
                 atomically . writeTBQueue (wdQueue wd) $ Just (path, hsType, time)
       where
