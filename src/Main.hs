@@ -339,7 +339,7 @@ cleanupTags args DirtyTags{..} = do
     -- here.
     exists <- doesFileExist path
     if | exists && updated -> do
-           let cleanedTags = ignoreSimilarClose . sortBy compareNAK $ Set.toList tags
+           let cleanedTags = ignoreSimilarClose dtKind . sortBy compareNAK $ Set.toList tags
            case dtKind of
              SingCTag -> if aExModeSearch args
                then addExCommands file cleanedTags
@@ -357,12 +357,13 @@ cleanupTags args DirtyTags{..} = do
                     <> on compare tagAddr t0 t1
                     <> on compare tagKind t0 t1
 
-    ignoreSimilarClose (a : b : rest)
+    ignoreSimilarClose :: SingTagKind tk -> [Tag tk] -> [Tag tk]
+    ignoreSimilarClose dtKind' (a : b : rest)
       | tagName a == tagName b =
-        if | a `betterThan` b -> a : ignoreSimilarClose rest
-           | b `betterThan` a -> b : ignoreSimilarClose rest
-           | otherwise        -> a : ignoreSimilarClose (b : rest)
-      | otherwise = a : ignoreSimilarClose (b : rest)
+        if | a `betterThan` b -> a <> b : ignoreSimilarClose dtKind' rest
+           | b `betterThan` a -> b <> a : ignoreSimilarClose dtKind' rest
+           | otherwise        -> a : ignoreSimilarClose dtKind' (b : rest)
+      | otherwise = a : ignoreSimilarClose dtKind' (b : rest)
       where
         -- Prefer definitions of functions and pattern synonyms over their type
         -- signatures and data/GADT constructors over type constructors.
@@ -373,7 +374,9 @@ cleanupTags args DirtyTags{..} = do
           || (   (tagKind x == TkDataConstructor || tagKind x == TkGADTConstructor)
               &&  tagKind y == TkTypeConstructor
              )
-    ignoreSimilarClose tags = tags
+    ignoreSimilarClose _ tags = tags
+                                                                                                                  
+
 
 -- | Convert 'tagAddress' of CTags to an Ex mode search command as some editors
 -- (e.g. Kate) don't support jumping to a line number and require a line match.
