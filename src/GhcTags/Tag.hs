@@ -193,6 +193,7 @@ instance NFData (TagDefinition tt) where
 
 deriving instance Show (TagDefinition tt)
 deriving instance Eq   (TagDefinition tt)
+deriving instance Ord  (TagDefinition tt)
 
 -- | Unit of data associated with a tag.  Vim natively supports `file:` and
 -- `kind:` tags but it can display any other tags too.
@@ -227,6 +228,7 @@ instance NFData (TagFields tt) where
 
 deriving instance Show (TagFields tt)
 deriving instance Eq   (TagFields tt)
+deriving instance Ord  (TagFields tt)
 instance Semigroup (TagFields tt) where
     NoTagFields   <> NoTagFields   = NoTagFields
     (TagFields a) <> (TagFields b) = TagFields (a ++ b)
@@ -255,7 +257,7 @@ data Tag (tt :: TagType) = Tag
   , tagFields     :: TagFields tt
     -- ^ ctags specific field
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 instance NFData (Tag tt) where
   rnf Tag{..} = rnf tagName

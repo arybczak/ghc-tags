@@ -1,6 +1,7 @@
 # ghc-tags-1.6 (2022-??-??)
 * Handle definitions of class methods properly.
 * Enable `MagicHash`by default.
+* Allow parsing files more than once with different configurations.
 
 # ghc-tags-1.5 (2022-05-15)
 * Handle errors more gracefully.
