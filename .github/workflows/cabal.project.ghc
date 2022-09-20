@@ -1,0 +1,2 @@
+package ghc-tags
+    ghc-options: -Werror=missing-methods

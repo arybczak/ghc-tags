@@ -1,0 +1,7 @@
+package ghc-tags
+    flags: +ghc-lib
+    ghc-options: -Werror=missing-methods
+
+package ghc-tags-core
+    flags: +ghc-lib
+
