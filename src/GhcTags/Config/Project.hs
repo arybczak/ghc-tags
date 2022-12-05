@@ -42,12 +42,14 @@ defaultProjectConfig = ProjectConfig
                      , ExplicitForAll
                      , ExplicitNamespaces
                      , GADTSyntax
+                     , ImportQualifiedPost
                      , LambdaCase
                      , MagicHash
                      , MultiWayIf
                      , NumericUnderscores
                      , OverloadedLabels
                      , PatternSynonyms
+                     , TemplateHaskellQuotes
                      , TypeApplications
                      , UnicodeSyntax
                      ]
