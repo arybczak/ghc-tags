@@ -49,6 +49,7 @@ defaultProjectConfig = ProjectConfig
                      , NumericUnderscores
                      , OverloadedLabels
                      , PatternSynonyms
+                     , QuasiQuotes
                      , TemplateHaskellQuotes
                      , TypeApplications
                      , UnicodeSyntax
