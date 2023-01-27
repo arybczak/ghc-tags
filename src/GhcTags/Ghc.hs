@@ -447,7 +447,12 @@ hsDeclsToGhcTags mies = foldr go []
         -- type checker, so ghc-tags will never encounter them.
         VarBind {} -> []
 
-        PatSynBind _ PSB { psb_id } -> [mkGhcTag' decLoc psb_id GtkPatternSynonym]
+        PatSynBind _ PSB { psb_id, psb_args } ->
+          mkGhcTag' decLoc psb_id GtkPatternSynonym : case psb_args of
+            RecCon fields ->
+              let fldLabel = foLabel . recordPatSynField
+              in map (\fld -> mkGhcTag' decLoc (fldLabel fld) GtkRecordField) fields
+            _ -> []
 
     mkClsMemberTags :: SrcSpan -> LocatedN RdrName -> Sig GhcPs -> [GhcTag]
     mkClsMemberTags decLoc clsName (ClassOpSig _ _ lhs hsSigWcType) =

@@ -4,6 +4,7 @@
   `TemplateHaskellQuotes` by default.
 * Allow parsing files more than once with different configurations.
 * Add support for GHC 9.4 and drop support for GHC 8.10.
+* Handle record pattern synonyms properly.
 
 # ghc-tags-1.5 (2022-05-15)
 * Handle errors more gracefully.
