@@ -23,8 +23,8 @@ import GHC.Driver.Pipeline
 import GHC.Driver.Ppr
 import GHC.Driver.Session
 import GHC.Hs
-import GHC.Parser.Errors.Ppr
 import GHC.Parser.Lexer
+import GHC.Types.Error
 import GHC.Types.SrcLoc
 import GHC.Utils.Error
 import System.Directory
@@ -124,21 +124,21 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
         processFile :: HscEnv -> FilePath -> HsFileType -> UTCTime -> IO ()
         processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
           handle showErr $ preprocess env hsFile Nothing Nothing >>= \case
-            Left errs -> report (hsc_dflags env) errs
+            Left errs -> report (hsc_dflags env) (getMessages errs)
             Right (flags, file) -> do
               --when (file /= rawFile) $ do
               --  putStrLn $ "Processing " ++ file ++ " (" ++ rawFile ++ ")"
               buffer <- hGetStringBuffer file
               case parseModule file flags buffer of
                 PFailed pstate -> do
-                  let (wrns, errs) = getMessages pstate
-                  report flags (pprWarning <$> wrns)
-                  report flags (pprError <$> errs)
+                  let (wrns, errs) = getPsMessages pstate
+                  report flags (getMessages wrns)
+                  report flags (getMessages errs)
                 POk pstate hsModule -> do
-                  let (wrns, errs) = getMessages pstate
-                  report flags (pprWarning <$> wrns)
-                  report flags (pprError <$> errs)
-                  when (isEmptyBag errs) $ do
+                  let (wrns, errs) = getPsMessages pstate
+                  report flags (getMessages wrns)
+                  report flags (getMessages errs)
+                  when (isEmptyBag $ getMessages errs) $ do
                     modifyMVar_ (wdTags wd) $ \tags -> do
                       pure $! updateTagsWith flags hsModule tags
                     modifyMVar_ (wdTimes wd) $ \times -> do
@@ -148,7 +148,7 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
             showErr :: GHC.GhcException -> IO ()
             showErr = putStrLn . show
 
-            report :: DynFlags -> Bag (MsgEnvelope DecoratedSDoc) -> IO ()
+            report :: Diagnostic e => DynFlags -> Bag (MsgEnvelope e) -> IO ()
             report flags msgs =
               sequence_ [ putStrLn $ showSDoc flags msg
                         | msg <- pprMsgEnvelopeBagWithLoc msgs
