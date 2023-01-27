@@ -396,15 +396,15 @@ hsDeclsToGhcTags mies = foldr go []
       -> LocatedN RdrName
       -> HsConDeclGADTDetails GhcPs
       -> [GhcTag]
-    mkHsConDeclGADTDetails decLoc tyName (RecConGADT (L _ fields)) =
+    mkHsConDeclGADTDetails decLoc tyName (RecConGADT (L _ fields) _) =
         foldr f [] fields
       where
         f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
         f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
 
         g :: LFieldOcc GhcPs -> GhcTag
-        g (L _ FieldOcc { rdrNameFieldOcc }) =
-            mkGhcTagForMember decLoc rdrNameFieldOcc tyName GtkRecordField
+        g (L _ FieldOcc { foLabel }) =
+            mkGhcTagForMember decLoc foLabel tyName GtkRecordField
     mkHsConDeclGADTDetails _ _ _ = []
 
     mkHsConDeclH98Details
@@ -419,8 +419,8 @@ hsDeclsToGhcTags mies = foldr go []
         f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
 
         g :: LFieldOcc GhcPs -> GhcTag
-        g (L _ FieldOcc { rdrNameFieldOcc }) =
-            mkGhcTagForMember decLoc rdrNameFieldOcc tyName GtkRecordField
+        g (L _ FieldOcc { foLabel }) =
+            mkGhcTagForMember decLoc foLabel tyName GtkRecordField
     mkHsConDeclH98Details _ _ _ = []
 
     mkHsBindLRTags :: SrcSpan
@@ -446,9 +446,6 @@ hsDeclsToGhcTags mies = foldr go []
         -- According to the GHC documentation VarBinds are introduced by the
         -- type checker, so ghc-tags will never encounter them.
         VarBind {} -> []
-
-        -- abstraction binding is only used after translation
-        AbsBinds {} -> []
 
         PatSynBind _ PSB { psb_id } -> [mkGhcTag' decLoc psb_id GtkPatternSynonym]
 
@@ -530,7 +527,7 @@ hsDeclsToGhcTags mies = foldr go []
         HsTyVar _ _ a         -> Just $ a
 
         HsAppTy _ a _         -> hsTypeTagName (unLoc a)
-        HsOpTy _ _ a _        -> Just $ a
+        HsOpTy _ _ _ a _      -> Just $ a
         HsKindSig _ a _       -> hsTypeTagName (unLoc a)
 
         _                     -> Nothing
