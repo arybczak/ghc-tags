@@ -1,4 +1,4 @@
-# ghc-tags-1.6 (2022-??-??)
+# ghc-tags-1.6 (2023-01-30)
 * Handle definitions of class methods properly.
 * Enable `ImportQualifiedPost`, `MagicHash`, `QuasiQuotes` and
   `TemplateHaskellQuotes` by default.
