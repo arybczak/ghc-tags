@@ -151,7 +151,7 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
             report :: Diagnostic e => DynFlags -> Bag (MsgEnvelope e) -> IO ()
             report flags msgs =
               sequence_ [ putStrLn $ showSDoc flags msg
-                        | msg <- pprMsgEnvelopeBagWithLoc msgs
+                        | msg <- pprMsgEnvelopeBagWithLocDefault msgs
                         ]
 
         -- Alex and Hsc files need to be preprocessed before going into GHC.
@@ -307,7 +307,7 @@ readTags tt tagsFile = doesFileExist tagsFile >>= \case
       SingETag -> fmap (fmap ([], )) . ETag.parseTagsFile
       SingCTag ->                      CTag.parseTagsFile
 
-updateTagsWith :: DynFlags -> Located HsModule -> DirtyTags -> DirtyTags
+updateTagsWith :: DynFlags -> Located (HsModule GhcPs) -> DirtyTags -> DirtyTags
 updateTagsWith dflags hsModule DirtyTags{..} =
   DirtyTags { dtTags = Map.unionWith mergeTags fileTags dtTags
             , ..

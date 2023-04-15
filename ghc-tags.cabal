@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                ghc-tags
-version:             1.6
+version:             1.7
 synopsis:            Utility for generating ctags and etags with GHC API.
 description:         Utility for generating etags (Emacs) and ctags (Vim and other
                      editors) with GHC API for efficient project navigation.
@@ -14,7 +14,7 @@ extra-source-files:  CHANGELOG.md
                      README.md
 homepage:            https://github.com/arybczak/ghc-tags
 bug-reports:         https://github.com/arybczak/ghc-tags/issues
-tested-with:         GHC ==9.0.2 || ==9.2.5 || ==9.4.4
+tested-with:         GHC ==9.2.7 || ==9.4.4 || ==9.6.1
 
 source-repository head
   type:     git
@@ -28,12 +28,12 @@ flag ghc-lib
 executable ghc-tags
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-A4m
 
-  if !flag(ghc-lib) && impl(ghc == 9.4.*)
+  if !flag(ghc-lib) && impl(ghc == 9.6.*)
      build-depends:    ghc, ghc-boot
   else
-     build-depends:    ghc-lib == 9.4.*
+     build-depends:    ghc-lib == 9.6.*
 
-  build-depends:       base >=4.15 && <4.18
+  build-depends:       base >=4.16 && <4.19
                      , aeson >= 2.0.0.0
                      , async
                      , attoparsec
