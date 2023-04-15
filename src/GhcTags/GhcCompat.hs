@@ -18,7 +18,6 @@ import GHC.Platform
 import GHC.Settings
 import GHC.Settings.Config
 import GHC.Settings.Utils
-import GHC.SysTools
 import GHC.SysTools.BaseDir
 import GHC.Types.SrcLoc
 import GHC.Utils.Fingerprint
@@ -33,7 +32,7 @@ parseModule
   :: FilePath
   -> DynFlags
   -> StringBuffer
-  -> ParseResult (Located HsModule)
+  -> ParseResult (Located (HsModule GhcPs))
 parseModule filename flags buffer = unP Parser.parseModule parseState
   where
     location = mkRealSrcLoc (mkFastString filename) 1 1
@@ -43,9 +42,8 @@ runGhc :: Ghc a -> IO a
 runGhc m = do
   env <- liftIO $ do
     mySettings <- compatInitSettings libdir
-    myLlvmConfig <- lazyInitLlvmConfig libdir
-    dflags <- threadSafeInitDynFlags (defaultDynFlags mySettings myLlvmConfig)
-    newHscEnv dflags
+    dflags <- threadSafeInitDynFlags (defaultDynFlags mySettings)
+    newHscEnv libdir dflags
   ref <- newIORef env
   unGhc (GHC.withCleanupSession m) (Session ref)
 
@@ -132,7 +130,6 @@ compatInitSettings top_dir = do
       cc_args  = words cc_args_str ++ unreg_cc_args
       cxx_args = words cxx_args_str
   ldSupportsCompactUnwind <- getBooleanSetting "ld supports compact unwind"
-  ldSupportsBuildId       <- getBooleanSetting "ld supports build-id"
   ldSupportsFilelist      <- getBooleanSetting "ld supports filelist"
   ldIsGnuLd               <- getBooleanSetting "ld is GNU ld"
 
@@ -145,7 +142,6 @@ compatInitSettings top_dir = do
   unlit_path <- getToolSetting "unlit command"
 
   windres_path <- getToolSetting "windres command"
-  libtool_path <- getToolSetting "libtool command"
   ar_path <- getToolSetting "ar command"
   otool_path <- getToolSetting "otool command"
   install_name_tool_path <- getToolSetting "install_name_tool command"
@@ -196,7 +192,6 @@ compatInitSettings top_dir = do
 
     , sToolSettings = ToolSettings
       { toolSettings_ldSupportsCompactUnwind = ldSupportsCompactUnwind
-      , toolSettings_ldSupportsBuildId       = ldSupportsBuildId
       , toolSettings_ldSupportsFilelist      = ldSupportsFilelist
       , toolSettings_ldIsGnuLd               = ldIsGnuLd
       , toolSettings_ccSupportsNoPie         = gccSupportsNoPie
@@ -211,7 +206,6 @@ compatInitSettings top_dir = do
       , toolSettings_pgm_dll = (mkdll_prog,mkdll_args)
       , toolSettings_pgm_T   = touch_path
       , toolSettings_pgm_windres = windres_path
-      , toolSettings_pgm_libtool = libtool_path
       , toolSettings_pgm_ar = ar_path
       , toolSettings_pgm_otool = otool_path
       , toolSettings_pgm_install_name_tool = install_name_tool_path

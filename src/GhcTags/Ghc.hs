@@ -23,7 +23,8 @@ import GHC.Types.Name (nameOccName, occNameFS)
 import GHC.Types.Name.Reader
 import GHC.Types.SourceText
 import GHC.Types.SrcLoc
-import GHC.Unit.Module.Name
+import Language.Haskell.Syntax.Module.Name
+import qualified Data.Foldable as F
 
 -- | Kind of the term.
 --
@@ -170,7 +171,7 @@ mkGhcTag (L SrcSpanAnn { locA = gtSrcSpan } rdrName) gtKind gtIsExported =
 --  * /data type families instances/
 --  * /data type family instances constructors/
 --
-getGhcTags :: Located HsModule
+getGhcTags :: Located (HsModule GhcPs)
            -> [GhcTag]
 getGhcTags (L _ HsModule { hsmodName, hsmodDecls, hsmodExports }) =
      maybeToList (mkModNameTag <$> hsmodName)
@@ -342,7 +343,7 @@ hsDeclsToGhcTags mies = foldr go []
       -- foreign declaration
       ForD _ foreignDecl ->
         case foreignDecl of
-          ForeignImport { fd_name, fd_fi = CImport _ _ _mheader _ (L _ sourceText) } ->
+          ForeignImport { fd_name, fd_fi = CImport (L _ sourceText) _ _ _mheader _ } ->
                 case sourceText of
                   NoSourceText -> tag
                   -- TODO: add header information from '_mheader'
@@ -375,7 +376,7 @@ hsDeclsToGhcTags mies = foldr go []
 
     mkConsTags decLoc tyName con@ConDeclGADT { con_names, con_g_args } =
          (\n -> mkGhcTagForMember decLoc n tyName (GtkGADTConstructor con))
-         `map` con_names
+         `map` F.toList con_names
       ++ mkHsConDeclGADTDetails decLoc tyName con_g_args
 
     mkConsTags decLoc tyName con@ConDeclH98  { con_name, con_args } =
@@ -474,7 +475,6 @@ hsDeclsToGhcTags mies = foldr go []
       flip (mkGhcTag' decLoc) (GtkTypeSignature HsWC { hswc_ext = NoExtField
                                                      , hswc_body = hsSigWcType
                                                      }) `map` lhs
-    mkSigTags _ IdSig {}               = []
     -- TODO: generate theses with additional info (fixity)
     mkSigTags _ FixSig {}              = []
     mkSigTags _ InlineSig {}           = []

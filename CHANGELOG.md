@@ -1,3 +1,6 @@
+# ghc-tags-1.7 (2023-??-??)
+* Add support for GHC 9.6 and drop support for GHC 9.0.
+
 # ghc-tags-1.6 (2023-01-30)
 * Handle definitions of class methods properly.
 * Enable `ImportQualifiedPost`, `MagicHash`, `QuasiQuotes` and
