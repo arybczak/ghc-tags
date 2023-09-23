@@ -1,3 +1,6 @@
+# ghc-tags-1.8 (2023-??-??)
+* Check modification time of directories.
+
 # ghc-tags-1.7 (2023-06-29)
 * Add support for GHC 9.6 and drop support for GHC 9.0.
 
