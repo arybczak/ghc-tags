@@ -75,39 +75,27 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
     processFiles = mapM_ $ \origPath -> do
       let path = normalise origPath
       unless (path `elem` pcExcludePaths pc) $ do
-        let tagPath = TagFileName (T.pack path)
         doesDirectoryExist path >>= \case
-          True -> showIOError $ do
-            -- Enter directories only if their mtime changed or is not recorded.
-            mtime <- getModificationTime path
-            goIn <- modifyMVar (wdTimes wd) $ \times -> do
-              let goIn = eligibleForUpdate tagPath mtime times
-              pure . (, goIn) $! if goIn
-                                 then updateTimesWith tagPath mtime times
-                                 else times
-            when goIn $ do
-              paths <- map (path </>) <$> listDirectory path
-              processFiles paths
+          True -> do
+            paths <- map (path </>) <$> listDirectory path
+            processFiles paths
           False -> F.forM_ (takeExtension path `lookup` haskellExts) $ \hsType -> do
             showIOError $ do
-              -- Source files are scanned and updated only if their mtime
-              -- changed or it's not recorded.
-              mtime <- getModificationTime path
-              updateTags <- withMVar (wdTimes wd) $ \times -> do
-                pure $ eligibleForUpdate tagPath mtime times
+              -- Source files are scanned and updated only if their mtime changed or
+              -- it's not recorded.
+              time <- getModificationTime path
+              updateTags <- withMVar (wdTimes wd) $ \times -> pure $
+                case TagFileName (T.pack path) `Map.lookup` times of
+                  -- If the file was already updated, it means it's eligible for
+                  -- the update with regard to its mtime, but it was already
+                  -- processed. In such case we let it through in order to
+                  -- support the case of parsing the same file multiple times
+                  -- with different CPP options.
+                  Just (Updated updated oldTime) -> updated || oldTime < time
+                  Nothing                        -> True
               when updateTags $ do
-                atomically . writeTBQueue (wdQueue wd) $ Just (path, hsType, mtime)
+                atomically . writeTBQueue (wdQueue wd) $ Just (path, hsType, time)
       where
-        eligibleForUpdate tagPath mtime times =
-          case tagPath `Map.lookup` times of
-            -- If the file was already updated, it means it's eligible for
-            -- the update with regard to its mtime, but it was already
-            -- processed. In such case we let it through in order to
-            -- support the case of parsing the same file multiple times
-            -- with different CPP options.
-            Just (Updated updated oldTime) -> updated || oldTime < mtime
-            Nothing                        -> True
-
         haskellExts = [ (".hs",      HsFile)
                       , (".hs-boot", HsBootFile)
                       , (".lhs",     LHsFile)
@@ -261,7 +249,7 @@ cleanupTimes Tags{..} = Map.traverseMaybeWithKey $ \file -> \case
     | updated || file `Map.member` tTags -> pure $ Just time
     | otherwise -> do
         let path = T.unpack $ getTagFileName file
-        doesPathExist path >>= \case
+        doesFileExist path >>= \case
           True  -> pure $ Just time
           False -> pure Nothing
 
