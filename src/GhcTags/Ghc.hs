@@ -47,9 +47,9 @@ data GhcTagKind
     | GtkTypeClass
     | GtkTypeClassMember               (HsWildCardBndrs GhcPs (LHsSigType GhcPs))
     | GtkTypeClassInstance             (HsType GhcPs)
-    | GtkTypeFamily             (Maybe ([HsTyVarBndr () GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
+    | GtkTypeFamily             (Maybe ([HsTyVarBndr (HsBndrVis GhcPs) GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
     | GtkTypeFamilyInstance     (TyFamInstDecl GhcPs)
-    | GtkDataTypeFamily         (Maybe ([HsTyVarBndr () GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
+    | GtkDataTypeFamily         (Maybe ([HsTyVarBndr (HsBndrVis GhcPs) GhcPs], Either (HsKind GhcPs) (HsTyVarBndr () GhcPs)))
     | GtkDataTypeFamilyInstance (Maybe (HsKind GhcPs))
     | GtkForeignImport
     | GtkForeignExport
@@ -66,7 +66,7 @@ data GhcTag = GhcTag {
     -- ^ tag's kind
   , gtIsExported :: Bool
     -- ^ 'True' iff the term is exported
-  , gtFFI        :: Maybe String
+  , gtFFI        :: Maybe ByteString
     -- ^ @ffi@ import
   }
 
@@ -347,7 +347,7 @@ hsDeclsToGhcTags mies = foldr go []
                 case sourceText of
                   NoSourceText -> tag
                   -- TODO: add header information from '_mheader'
-                  SourceText s -> tag { gtFFI = Just s }
+                  SourceText s -> tag { gtFFI = Just $ bytesFS s }
               : tags
             where
               tag = mkGhcTag' decLoc fd_name GtkForeignImport
