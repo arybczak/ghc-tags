@@ -107,7 +107,6 @@ compatInitSettings top_dir = do
       getToolSetting :: String -> IO String
       getToolSetting key = expandToolDir useInplaceMinGW mtool_dir <$> getSetting key
 
-  myExtraGccViaCFlags <- getSetting "GCC extra via C opts"
   -- On Windows, mingw is distributed with GHC,
   -- so we look in TopDir/../mingw/bin,
   -- as well as TopDir/../../mingw/bin for hadrian.
@@ -229,7 +228,7 @@ compatInitSettings top_dir = do
       , toolSettings_opt_lc      = []
       , toolSettings_opt_i       = []
 
-      , toolSettings_extraGccViaCFlags = words myExtraGccViaCFlags
+      , toolSettings_extraGccViaCFlags = []
       }
 
     , sTargetPlatform = platform

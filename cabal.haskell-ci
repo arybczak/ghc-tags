@@ -2,3 +2,5 @@ branches:       master
 doctest:        False
 tests:          True
 jobs-selection: any
+
+installed: -all

@@ -386,7 +386,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         TagFields $
           case gtFFI of
             Nothing  -> mempty
-            Just ffi -> [TagField "ffi" $ Text.pack ffi]
+            Just ffi -> [TagField "ffi" $ Text.decodeUtf8 ffi]
 
 
     -- 'TagFields' from 'GhcTagKind'
