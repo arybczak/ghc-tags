@@ -1,4 +1,4 @@
-# ghc-tags-1.8 (????-??-??)
+# ghc-tags-1.8 (2024-01-24)
 * Add support for GHC 9.8 and drop support for GHC 9.2.
 
 # ghc-tags-1.7 (2023-06-29)
