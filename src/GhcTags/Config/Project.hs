@@ -52,6 +52,7 @@ defaultProjectConfig = ProjectConfig
                      , QuasiQuotes
                      , TemplateHaskellQuotes
                      , TypeApplications
+                     , UnboxedTuples
                      , UnicodeSyntax
                      ]
   , pcCppIncludes = []
