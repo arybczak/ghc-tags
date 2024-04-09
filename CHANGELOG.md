@@ -1,6 +1,3 @@
-# ghc-tags-1.9 (2024-??-??)
-* Enable `UnboxedTuples` by default.
-
 # ghc-tags-1.8 (2024-01-24)
 * Add support for GHC 9.8 and drop support for GHC 9.2.
 
