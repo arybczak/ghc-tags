@@ -42,26 +42,13 @@ runGhc :: Ghc a -> IO a
 runGhc m = do
   env <- liftIO $ do
     mySettings <- compatInitSettings libdir
-    dflags <- threadSafeInitDynFlags (defaultDynFlags mySettings)
-    newHscEnv libdir dflags
+    tmpdir <- liftIO getTemporaryDirectory
+    newHscEnv libdir $ (defaultDynFlags mySettings) { tmpDir = TempDir tmpdir }
   ref <- newIORef env
   unGhc (GHC.withCleanupSession m) (Session ref)
 
 ----------------------------------------
 -- Internal
-
--- | Adjusted version of 'GHC.Driver.Session.initDynFlags' that doesn't check
--- for colors as it's not thread safe.
-threadSafeInitDynFlags :: DynFlags -> IO DynFlags
-threadSafeInitDynFlags dflags = do
-  refRtldInfo <- newIORef Nothing
-  refRtccInfo <- newIORef Nothing
-  tmpdir      <- liftIO getTemporaryDirectory
-  pure dflags
-    { rtldInfo = refRtldInfo
-    , rtccInfo = refRtccInfo
-    , tmpDir   = TempDir tmpdir
-    }
 
 -- | Stripped version of 'GHC.Settings.IO.initSettings' that ignores the
 -- @platformConstants@ file as it's irrelevant for parsing.
@@ -146,15 +133,9 @@ compatInitSettings top_dir = do
   install_name_tool_path <- getToolSetting "install_name_tool command"
   ranlib_path <- getToolSetting "ranlib command"
 
-  touch_path <- getToolSetting "touch command"
-
-  mkdll_prog <- getToolSetting "dllwrap command"
-  let mkdll_args = []
-
   -- cpp is derived from gcc on all platforms
   -- HACK, see setPgmP below. We keep 'words' here to remember to fix
   -- Config.hs one day.
-
 
   -- Other things being equal, as and ld are simply gcc
   cc_link_args_str <- getSetting "C compiler link flags"
@@ -171,7 +152,6 @@ compatInitSettings top_dir = do
   -- We just assume on command line
   lc_prog <- getSetting "LLVM llc command"
   lo_prog <- getSetting "LLVM opt command"
-  lcc_prog <- getSetting "LLVM clang command"
 
   let iserv_prog = libexec "ghc-iserv"
 
@@ -202,8 +182,6 @@ compatInitSettings top_dir = do
       , toolSettings_pgm_a   = (as_prog, as_args)
       , toolSettings_pgm_l   = (ld_prog, ld_args)
       , toolSettings_pgm_lm  = ld_r
-      , toolSettings_pgm_dll = (mkdll_prog,mkdll_args)
-      , toolSettings_pgm_T   = touch_path
       , toolSettings_pgm_windres = windres_path
       , toolSettings_pgm_ar = ar_path
       , toolSettings_pgm_otool = otool_path
@@ -211,7 +189,6 @@ compatInitSettings top_dir = do
       , toolSettings_pgm_ranlib = ranlib_path
       , toolSettings_pgm_lo  = (lo_prog,[])
       , toolSettings_pgm_lc  = (lc_prog,[])
-      , toolSettings_pgm_lcc = (lcc_prog,[])
       , toolSettings_pgm_i   = iserv_prog
       , toolSettings_opt_L       = []
       , toolSettings_opt_P       = []
@@ -223,7 +200,6 @@ compatInitSettings top_dir = do
       , toolSettings_opt_l       = []
       , toolSettings_opt_lm      = []
       , toolSettings_opt_windres = []
-      , toolSettings_opt_lcc     = []
       , toolSettings_opt_lo      = []
       , toolSettings_opt_lc      = []
       , toolSettings_opt_i       = []
