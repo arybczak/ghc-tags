@@ -88,15 +88,15 @@ isMemberExported (Just ies) memberName  className  = any go ies
   where
     go :: IE GhcPs -> Bool
 
-    go (IEVar _ (L _ n)) = ieWrappedName n == unLoc memberName
+    go (IEVar _ (L _ n) _) = ieWrappedName n == unLoc memberName
 
-    go (IEThingAbs _ _)  = False
+    go (IEThingAbs _ _ _)  = False
 
-    go (IEThingAll _ (L _ n)) = ieWrappedName n == unLoc className
+    go (IEThingAll _ (L _ n) _) = ieWrappedName n == unLoc className
 
-    go (IEThingWith _ _ IEWildcard{} _) = True
+    go (IEThingWith _ _ IEWildcard{} _ _) = True
 
-    go (IEThingWith _ (L _ n) NoIEWildcard ns) =
+    go (IEThingWith _ (L _ n) NoIEWildcard ns _) =
             ieWrappedName n == unLoc className
          && isInWrappedNames
       where
@@ -117,11 +117,11 @@ mkGhcTag :: LocatedN RdrName
          -> Bool
          -- ^ is term exported
          -> GhcTag
-mkGhcTag (L SrcSpanAnn { locA = gtSrcSpan } rdrName) gtKind gtIsExported =
+mkGhcTag (L loc rdrName) gtKind gtIsExported =
     case rdrName of
       Unqual occName ->
         GhcTag { gtTag = bytesFS (occNameFS occName)
-               , gtSrcSpan
+               , gtSrcSpan = getHasLoc loc
                , gtKind
                , gtIsExported
                , gtFFI = Nothing
@@ -129,7 +129,7 @@ mkGhcTag (L SrcSpanAnn { locA = gtSrcSpan } rdrName) gtKind gtIsExported =
 
       Qual _ occName ->
         GhcTag { gtTag = bytesFS (occNameFS occName)
-               , gtSrcSpan
+               , gtSrcSpan = getHasLoc loc
                , gtKind
                , gtIsExported
                , gtFFI = Nothing
@@ -138,7 +138,7 @@ mkGhcTag (L SrcSpanAnn { locA = gtSrcSpan } rdrName) gtKind gtIsExported =
       -- Orig is the only one we are interested in
       Orig _ occName ->
         GhcTag { gtTag = bytesFS (occNameFS occName)
-               , gtSrcSpan
+               , gtSrcSpan = getHasLoc loc
                , gtKind
                , gtIsExported
                , gtFFI = Nothing
@@ -146,7 +146,7 @@ mkGhcTag (L SrcSpanAnn { locA = gtSrcSpan } rdrName) gtKind gtIsExported =
 
       Exact eName ->
         GhcTag { gtTag = bytesFS (occNameFS (nameOccName eName))
-               , gtSrcSpan
+               , gtSrcSpan = getHasLoc loc
                , gtKind
                , gtIsExported
                , gtFFI = Nothing
@@ -225,7 +225,7 @@ hsDeclsToGhcTags mies = foldr go []
     -- Main routine which traverse all top level declarations.
     --
     go :: LHsDecl GhcPs -> [GhcTag] -> [GhcTag]
-    go (L SrcSpanAnn { locA = decLoc } hsDecl) tags = case hsDecl of
+    go (L loc hsDecl) tags = let decLoc = getHasLoc loc in case hsDecl of
 
       -- type or class declaration
       TyClD _ tyClDecl ->
@@ -397,7 +397,7 @@ hsDeclsToGhcTags mies = foldr go []
       -> LocatedN RdrName
       -> HsConDeclGADTDetails GhcPs
       -> [GhcTag]
-    mkHsConDeclGADTDetails decLoc tyName (RecConGADT (L _ fields) _) =
+    mkHsConDeclGADTDetails decLoc tyName (RecConGADT _ (L _ fields)) =
         foldr f [] fields
       where
         f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
