@@ -9,7 +9,6 @@ module GhcTags.Ghc
 
 import Data.ByteString (ByteString)
 import Data.Maybe
-import GHC.Data.Bag
 import GHC.Data.FastString
 import GHC.Hs (HsModule(..), NoExtField(..))
 import GHC.Hs.Binds
@@ -387,7 +386,7 @@ hsDeclsToGhcTags mies = foldr go []
     mkHsLocalBindsTags :: SrcSpan -> HsLocalBinds GhcPs -> [GhcTag]
     mkHsLocalBindsTags decLoc (HsValBinds _ (ValBinds _ hsBindsLR sigs)) =
          -- where clause bindings
-         concatMap (mkHsBindLRTags decLoc . unLoc) (bagToList hsBindsLR)
+         concatMap (mkHsBindLRTags decLoc . unLoc) hsBindsLR
       ++ concatMap (mkSigTags decLoc . unLoc) sigs
 
     mkHsLocalBindsTags _ _ = []
