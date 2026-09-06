@@ -1,4 +1,7 @@
 # ghc-tags-1.11 (2026-??-??)
+* Normalise `exclude_paths` before matching them against source paths. An entry
+  that begins with `./` or ends with a path separator now excludes the path it
+  names.
 * Fix the kind characters of type families in ctags. An uppercase character now
   always marks the family and a lowercase one the instance: `T` and `t` for a
   type family, `D` and `d` for a data type family. Reading a tags file no longer

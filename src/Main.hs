@@ -70,11 +70,19 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
   $ Concurrently (processFiles (pcSourcePaths pc) >> terminateWorkers)
   : replicate threads (Concurrently worker)
   where
+    -- Both sides of the exclusion test go through the same normalisation, so
+    -- that "./dist", "dist/" and "dist" mean the same directory.
+    normalisePath :: FilePath -> FilePath
+    normalisePath = dropTrailingPathSeparator . normalise
+
+    excludePaths :: Set.Set FilePath
+    excludePaths = Set.fromList . map normalisePath $ pcExcludePaths pc
+
     -- Walk a list of paths recursively and process eligible source files.
     processFiles :: [String] -> IO ()
     processFiles = mapM_ $ \origPath -> do
-      let path = normalise origPath
-      unless (path `elem` pcExcludePaths pc) $ do
+      let path = normalisePath origPath
+      unless (path `Set.member` excludePaths) $ do
         doesDirectoryExist path >>= \case
           True -> do
             paths <- map (path </>) <$> listDirectory path
