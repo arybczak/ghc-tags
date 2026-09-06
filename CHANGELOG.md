@@ -1,4 +1,7 @@
 # ghc-tags-1.11 (2026-??-??)
+* If the configuration file cannot be parsed, exit with a failure code. The
+  error message now goes to standard error. Earlier versions printed the message
+  to standard output and exited with success.
 * Normalise `exclude_paths` before matching them against source paths. An entry
   that begins with `./` or ends with a path separator now excludes the path it
   names.

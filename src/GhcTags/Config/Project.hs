@@ -10,6 +10,7 @@ import GHC.Driver.Session
 import GHC.LanguageExtensions
 import GHC.Settings
 import System.Directory
+import System.IO
 import qualified Data.Aeson.Key as K
 import qualified Data.Aeson.KeyMap as K
 import qualified Data.ByteString.Char8 as BS
@@ -65,14 +66,16 @@ defaultProjectConfig = ProjectConfig
   , pcCppOptions  = []
   }
 
-getProjectConfigs :: FilePath -> IO [ProjectConfig]
+-- | Read the project configurations from a file. Return 'Nothing' when the file
+-- exists and cannot be parsed.
+getProjectConfigs :: FilePath -> IO (Maybe [ProjectConfig])
 getProjectConfigs file = doesFileExist file >>= \case
   True  -> Y.decodeAllFileEither file >>= \case
     Left e  -> do
-      putStrLn $ file ++ ": " ++ Y.prettyPrintParseException e
-      pure []
-    Right pcs -> pure pcs
-  False -> pure [defaultProjectConfig]
+      hPutStrLn stderr $ file ++ ": " ++ Y.prettyPrintParseException e
+      pure Nothing
+    Right pcs -> pure $ Just pcs
+  False -> pure $ Just [defaultProjectConfig]
 
 ppProjectConfig :: ProjectConfig -> String
 ppProjectConfig = BS.unpack . Y.encodePretty conf

@@ -194,7 +194,9 @@ main = do
 
   pcs <- case aSourcePaths args of
     SourceArgs paths      -> pure [defaultProjectConfig { pcSourcePaths = paths }]
-    ConfigFile configFile -> getProjectConfigs configFile
+    ConfigFile configFile -> getProjectConfigs configFile >>= \case
+      Just pcs -> pure pcs
+      Nothing  -> exitFailure
 
   when (not $ null pcs) $ do
     wd <- initWorkerData args (aThreads args)
