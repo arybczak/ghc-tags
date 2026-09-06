@@ -25,8 +25,8 @@ tagKindToChar tk = case tk of
     TkTypeClassInstance       -> Just 'i'
     TkTypeFamily              -> Just 'T'
     TkTypeFamilyInstance      -> Just 't'
-    TkDataTypeFamily          -> Just 'd'
-    TkDataTypeFamilyInstance  -> Just 'D'
+    TkDataTypeFamily          -> Just 'D'
+    TkDataTypeFamilyInstance  -> Just 'd'
     TkForeignImport           -> Just 'I'
     TkForeignExport           -> Just 'E'
 
@@ -49,10 +49,10 @@ charToTagKind c = case c of
      'C' -> TkTypeClass
      'm' -> TkTypeClassMember
      'i' -> TkTypeClassInstance
-     't' -> TkTypeFamily
-     'T' -> TkTypeFamilyInstance
-     'd' -> TkDataTypeFamily
-     'D' -> TkDataTypeFamilyInstance
+     'T' -> TkTypeFamily
+     't' -> TkTypeFamilyInstance
+     'D' -> TkDataTypeFamily
+     'd' -> TkDataTypeFamilyInstance
      'I' -> TkForeignImport
      'E' -> TkForeignExport
 

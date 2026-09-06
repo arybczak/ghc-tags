@@ -89,25 +89,8 @@ instance NFData TagFileName where
 -- preserve information from parsed tags files which were not created by
 -- `ghc-tags-plugin'
 --
--- * 'TkModule' - @`@
--- * 'TkTerm' - @`@
--- * 'TkFunction' - @λ@
--- * 'TkTypeConstructor' - @Λ@
--- * 'TkDataConstructor' - @c@
--- * 'TkGADTConstructor' - @g@
--- * 'TkRecordField' - @r@
--- * 'TkTypeSynonym' - @≡@
--- * 'TkTypeSignature' - @⊢@
--- * 'TkPatternSynonym' - @p@
--- * 'TkTypeClass' - @C@
--- * 'TkTypeClassMember' - @m@
--- * 'TkTypeClassInstance' - @i@
--- * 'TkTypeFamily' - @f@
--- * 'TkTypeFamilyInstance' - @F@
--- * 'TkDataTypeFamily' - @d@
--- * 'TkDataTypeFamilyInstance' - @D@
--- * 'TkForeignImport' - @I@
--- * 'TkForeignExport' - @E@
+-- 'GhcTags.CTag.Utils.tagKindToChar' and 'GhcTags.CTag.Utils.charToTagKind'
+-- define the character of each kind.
 --
 data TagKind (tt :: TagType) where
     TkModule                 :: TagKind tt

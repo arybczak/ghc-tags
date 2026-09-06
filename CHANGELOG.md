@@ -1,4 +1,9 @@
 # ghc-tags-1.11 (2026-??-??)
+* Fix the kind characters of type families in ctags. An uppercase character now
+  always marks the family and a lowercase one the instance: `T` and `t` for a
+  type family, `D` and `d` for a data type family. Reading a tags file no longer
+  swaps `T` with `t`, and a data type family now gets `D` instead of `d`. Delete
+  the old tags file to regenerate it from scratch.
 * Add support for GHC 9.14 and drop support for GHC 9.8.
 * Accept `GHC2021` and `GHC2024` as values of the `language` configuration key.
 * Support disabling a language extension in the configuration file by prefixing
