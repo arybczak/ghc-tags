@@ -34,9 +34,10 @@ For more complicated projects you need to create the configuration file
   traversed recursively.
 * `exclude_paths` - a list of paths for `ghc-tags` to exclude from processing.
 * `language` - the flavour of Haskell, either `Haskell98` or `Haskell2010`.
-* `extensions` - a list of GHC language extensions to enable when parsing. Note
-  that GHC needs much less extensions for parsing alone, so you should almost
-  never need to override this.
+* `extensions` - a list of GHC language extensions to enable when parsing. A
+  `No` prefix disables the extension instead, e.g. `NoStarIsType`. Note that GHC
+  needs much less extensions for parsing alone, so you should almost never need
+  to override this.
 * `cpp_includes` - include paths for the C pre-processor.
 * `cpp_options` - other options for the C pre-processor, e.g. defines (usually
   undefined `MIN_VERSION_x` macros will go here).
