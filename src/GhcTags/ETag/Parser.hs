@@ -21,10 +21,10 @@ import qualified GhcTags.Utils as Utils
 --
 parseTagsFile :: Text
               -> IO (Either String ETagMap)
-parseTagsFile =
-      fmap AT.eitherResult
-    . AT.parseWith (pure mempty)
-                   (Map.fromList <$> many parseTagFileSection)
+parseTagsFile = fmap AT.eitherResult . AT.parseWith (pure mempty) parseTags
+  where
+    parseTags :: Parser ETagMap
+    parseTags = Map.fromList <$> many parseTagFileSection <* Utils.endOfInput
 
 
 -- | Parse tags from a single file (a single section in etags file).

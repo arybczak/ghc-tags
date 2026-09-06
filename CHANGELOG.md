@@ -1,4 +1,8 @@
 # ghc-tags-1.11 (2026-??-??)
+* Reject a tags file that is only partly readable. Earlier versions stopped at
+  the first bad line and dropped every tag after it without a word, and the
+  stored modification times stopped those tags from ever coming back. The bad
+  line is now reported and all the source files are scanned again.
 * Decode source lines and names leniently. A byte that is not valid UTF-8 in a
   source file or in its name no longer crashes the run.
 * If the configuration file cannot be parsed, exit with a failure code. The

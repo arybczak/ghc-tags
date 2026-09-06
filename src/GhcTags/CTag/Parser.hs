@@ -20,6 +20,7 @@ import qualified Data.Text          as Text
 import           GhcTags.Tag
 import           GhcTags.CTag.Header
 import           GhcTags.CTag.Utils
+import qualified GhcTags.Utils as Utils
 
 
 
@@ -111,6 +112,7 @@ parseTags :: Parser ([Header], CTagMap)
 parseTags = (\headers tags -> (headers, Map.fromListWith (++) $ map sndList tags))
   <$> many parseHeader
   <*> many parseTag
+  <*  Utils.endOfInput
   where
     sndList (file, tag) = (file, [tag])
 
