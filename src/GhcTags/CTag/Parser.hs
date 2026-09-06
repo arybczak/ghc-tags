@@ -184,8 +184,14 @@ parseHeader = do
     parseComment :: Parser Text
     parseComment =
          AT.char '/'
-      *> (Text.init <$> AT.takeWhile notNewLine)
+      *> (dropEndSlash <$> AT.takeWhile notNewLine)
       <* endOfLine
+      where
+        -- The comment ends with a slash, but a foreign tags file can omit it.
+        dropEndSlash :: Text -> Text
+        dropEndSlash t = case Text.stripSuffix "/" t of
+          Just t' -> t'
+          Nothing -> t
 
 
 

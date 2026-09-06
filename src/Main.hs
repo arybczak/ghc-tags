@@ -284,11 +284,20 @@ data Tags = forall tt. Tags
   , tTags    :: Map.Map TagFileName [Tag tt]
   }
 
+-- | Like 'try', but let asynchronous exceptions through. A tags file that
+-- cannot be read must not stop the run, whatever the reason is.
+trySync :: IO a -> IO (Either SomeException a)
+trySync m = try m >>= \case
+  Right a  -> pure $ Right a
+  Left err -> case fromException err of
+    Just (SomeAsyncException _) -> throwIO err
+    Nothing                     -> pure $ Left err
+
 readTags :: forall tt. SingTagType tt -> FilePath -> IO DirtyTags
 readTags tt tagsFile = doesFileExist tagsFile >>= \case
   False -> pure newDirtyTags
   True  -> do
-    res <- tryIOError $ parseTagsFile . T.decodeUtf8 =<< BS.readFile tagsFile
+    res <- trySync $ parseTagsFile . T.decodeUtf8Lenient =<< BS.readFile tagsFile
     case res of
       Right (Right (headers, tags)) ->
         -- full evaluation decreases performance variation

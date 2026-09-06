@@ -1,4 +1,7 @@
 # ghc-tags-1.11 (2026-??-??)
+* Recover from a broken tags file instead of crashing. A header comment without
+  its closing slash and a byte that is not valid UTF-8 both ended the run with
+  an uncaught exception.
 * Reject a tags file that is only partly readable. Earlier versions stopped at
   the first bad line and dropped every tag after it without a word, and the
   stored modification times stopped those tags from ever coming back. The bad
