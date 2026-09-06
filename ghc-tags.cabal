@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                ghc-tags
-version:             1.10
+version:             1.11
 synopsis:            Utility for generating ctags and etags with GHC API.
 description:         Utility for generating etags (Emacs) and ctags (Vim and other
                      editors) with GHC API for efficient project navigation.
@@ -14,26 +14,16 @@ extra-source-files:  CHANGELOG.md
                      README.md
 homepage:            https://github.com/arybczak/ghc-tags
 bug-reports:         https://github.com/arybczak/ghc-tags/issues
-tested-with:         GHC == { 9.8.4, 9.10.3, 9.12.2 }
+tested-with:         GHC == { 9.10.3, 9.12.4, 9.14.1 }
 
 source-repository head
   type:     git
   location: https://github.com/arybczak/ghc-tags
 
-flag ghc-lib
-  default: False
-  manual:  True
-  description: Use ghc-lib even when compiling with compatible GHC version.
-
 executable ghc-tags
-  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-A4m
+  ghc-options:         -Wall -Wunused-packages -threaded -rtsopts -with-rtsopts=-A4m
 
-  if !flag(ghc-lib) && impl(ghc == 9.12.*)
-     build-depends:    ghc, ghc-boot
-  else
-     build-depends:    ghc-lib == 9.12.*
-
-  build-depends:       base >=4.19 && <4.22
+  build-depends:       base >=4.20 && <4.23
                      , aeson >= 2.0.0.0
                      , async >= 2.2.5
                      , attoparsec
@@ -42,6 +32,8 @@ executable ghc-tags
                      , deepseq
                      , directory
                      , filepath
+                     , ghc >= 9.10 && < 9.15
+                     , ghc-boot >= 9.10 && < 9.15
                      , ghc-paths
                      , stm
                      , optparse-applicative

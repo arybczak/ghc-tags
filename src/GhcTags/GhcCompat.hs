@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 module GhcTags.GhcCompat
   ( runGhc
@@ -27,6 +28,10 @@ import System.FilePath
 import qualified Data.Map.Strict as Map
 import qualified GHC
 import qualified GHC.Parser as Parser
+
+#if __GLASGOW_HASKELL__ >= 914
+import GHC.Unit.Types
+#endif
 
 parseModule
   :: FilePath
@@ -168,6 +173,13 @@ compatInitSettings top_dir = do
       , fileSettings_topDir         = top_dir
       , fileSettings_globalPackageDatabase = globalpkgdb_path
       }
+
+#if __GLASGOW_HASKELL__ >= 914
+    , sUnitSettings = UnitSettings
+      {
+        unitSettings_baseUnitId = stringToUnitId ""
+      }
+#endif
 
     , sToolSettings = ToolSettings
       { toolSettings_ldSupportsCompactUnwind = ldSupportsCompactUnwind

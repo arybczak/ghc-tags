@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: GHC ${{ matrix.ghc }}
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc:
+          - '9.10.3'
+          - '9.12.4'
+          - '9.14.1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: '3.16.1.0'
+
+      - name: Configure the project
+        run: |
+          cat >> cabal.project.local <<EOF
+          semaphore: True
+          jobs: 4
+
+          package ghc-tags
+            ghc-options: -Werror
+          EOF
+
+      - name: Cache the cabal store
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ hashFiles('ghc-tags.cabal', 'cabal.project') }}
+          restore-keys: ${{ runner.os }}-ghc-${{ matrix.ghc }}-
+
+      - name: Build ghc-tags and generate tags for this repository
+        run: ./scripts/check-tags.sh
