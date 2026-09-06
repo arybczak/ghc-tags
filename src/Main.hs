@@ -297,13 +297,16 @@ readTags :: forall tt. SingTagType tt -> FilePath -> IO DirtyTags
 readTags tt tagsFile = doesFileExist tagsFile >>= \case
   False -> pure newDirtyTags
   True  -> do
-    res <- trySync $ parseTagsFile . T.decodeUtf8Lenient =<< BS.readFile tagsFile
+    res <- trySync $ do
+      parsed <- parseTagsFile . T.decodeUtf8Lenient =<< BS.readFile tagsFile
+      -- Full evaluation decreases performance variation. It also keeps a
+      -- failure of the parser inside 'trySync'.
+      evaluate $ force parsed
     case res of
-      Right (Right (headers, tags)) ->
-        -- full evaluation decreases performance variation
-        deepseq headers `seq` deepseq tags `seq` pure DirtyTags
+      Right (Right (headers, tags)) -> pure DirtyTags
         { dtKind = tt
-        , dtHeaders = headers , dtTags = Map.map (Updated False . Set.fromList) tags
+        , dtHeaders = headers
+        , dtTags = Map.map (Updated False . Set.fromList) tags
         }
       -- reading failed
       Left err -> do
