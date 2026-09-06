@@ -402,7 +402,8 @@ addExCommands file tags = do
         line <- fileLines V.!? (lineNo - 1)
         let TagFields fields = tagFields tag
             -- Ex mode forward search command. Slashes need to be escaped.
-            exCommand = T.concat ["/^", T.replace "/" "\\/" $ T.decodeUtf8 line, "$/"]
+            exCommand = T.concat
+              ["/^", T.replace "/" "\\/" $ T.decodeUtf8Lenient line, "$/"]
         pure tag
           { tagAddr = TagCommand $ ExCommand exCommand
           , tagFields = TagFields $ TagField "line" (T.pack $ show lineNo) : fields
@@ -433,7 +434,7 @@ addFileOffsets file tags = do
         { tagAddr       = TagLineOff lineNo offset
         , tagDefinition =
           -- Prevent weird characters from ending up in the TAGS file.
-          TagDefinition . T.takeWhile isPrint $ T.decodeUtf8 line
+          TagDefinition . T.takeWhile isPrint $ T.decodeUtf8Lenient line
         }
 
 writeTags :: FilePath -> Tags -> IO ()

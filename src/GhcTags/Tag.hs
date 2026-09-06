@@ -324,9 +324,11 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
           }
 
   where
-    fileName = TagFileName . Text.decodeUtf8 . bytesFS . srcSpanFile
+    -- A file name is not necessarily valid UTF-8, so a strict decoder would
+    -- throw and take the whole run down.
+    fileName = TagFileName . Text.decodeUtf8Lenient . bytesFS . srcSpanFile
 
-    tagName = Text.decodeUtf8 gtTag
+    tagName = Text.decodeUtf8Lenient gtTag
 
     fromGhcTagKind :: GhcTagKind -> TagKind tt
     fromGhcTagKind = \case
@@ -369,7 +371,7 @@ ghcTagToTag sing dynFlags GhcTag { gtSrcSpan, gtTag, gtKind, gtIsExported, gtFFI
         TagFields $
           case gtFFI of
             Nothing  -> mempty
-            Just ffi -> [TagField "ffi" $ Text.decodeUtf8 ffi]
+            Just ffi -> [TagField "ffi" $ Text.decodeUtf8Lenient ffi]
 
 
     -- 'TagFields' from 'GhcTagKind'

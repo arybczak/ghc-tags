@@ -1,4 +1,6 @@
 # ghc-tags-1.11 (2026-??-??)
+* Decode source lines and names leniently. A byte that is not valid UTF-8 in a
+  source file or in its name no longer crashes the run.
 * If the configuration file cannot be parsed, exit with a failure code. The
   error message now goes to standard error. Earlier versions printed the message
   to standard output and exited with success.
