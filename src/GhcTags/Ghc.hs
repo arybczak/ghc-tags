@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | Generate tags from @'HsModule' 'GhcPs'@ representation.
 --
 module GhcTags.Ghc
@@ -399,8 +400,13 @@ hsDeclsToGhcTags mies = foldr go []
     mkHsConDeclGADTDetails decLoc tyName (RecConGADT _ (L _ fields)) =
         foldr f [] fields
       where
+#if __GLASGOW_HASKELL__ >= 914
+        f :: LHsConDeclRecField GhcPs -> [GhcTag] -> [GhcTag]
+        f (L _ HsConDeclRecField { cdrf_names }) ts = ts ++ map g cdrf_names
+#else
         f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
         f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
+#endif
 
         g :: LFieldOcc GhcPs -> GhcTag
         g (L _ FieldOcc { foLabel }) =
@@ -415,8 +421,13 @@ hsDeclsToGhcTags mies = foldr go []
     mkHsConDeclH98Details decLoc tyName (RecCon (L _ fields)) =
         foldr f [] fields
       where
+#if __GLASGOW_HASKELL__ >= 914
+        f :: LHsConDeclRecField GhcPs -> [GhcTag] -> [GhcTag]
+        f (L _ HsConDeclRecField { cdrf_names }) ts = ts ++ map g cdrf_names
+#else
         f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
         f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
+#endif
 
         g :: LFieldOcc GhcPs -> GhcTag
         g (L _ FieldOcc { foLabel }) =
@@ -450,7 +461,9 @@ hsDeclsToGhcTags mies = foldr go []
         PatSynBind _ PSB { psb_id, psb_args } ->
           mkGhcTag' decLoc psb_id GtkPatternSynonym : case psb_args of
             RecCon fields ->
-              let fldLabel = foLabel . recordPatSynField
+              let fldLabel fld = case recordPatSynField fld of
+                    FieldOcc _ label -> label
+                    XFieldOcc _ -> error "can't happen"
               in map (\fld -> mkGhcTag' decLoc (fldLabel fld) GtkRecordField) fields
             _ -> []
 
@@ -479,6 +492,9 @@ hsDeclsToGhcTags mies = foldr go []
     mkSigTags _ InlineSig {}           = []
     -- SPECIALISE pragmas
     mkSigTags _ SpecSig {}             = []
+#if __GLASGOW_HASKELL__ >= 914
+    mkSigTags _ SpecSigE {}            = []
+#endif
     mkSigTags _ SpecInstSig {}         = []
     -- MINIMAL pragma
     mkSigTags _ MinimalSig {}          = []

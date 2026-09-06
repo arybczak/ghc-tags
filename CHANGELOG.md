@@ -1,3 +1,9 @@
+# ghc-tags-1.11 (2026-??-??)
+* Add support for GHC 9.14 and drop support for GHC 9.8.
+* Drop the `ghc-lib` dependency and the `ghc-lib` flag. The parser now comes
+  from the `ghc` library of the compiler that builds `ghc-tags`. The supported
+  syntax is the syntax of that compiler.
+
 # ghc-tags-1.10 (2025-11-19)
 * Add support for GHC 9.12 and drop support for GHC 9.6.
 
