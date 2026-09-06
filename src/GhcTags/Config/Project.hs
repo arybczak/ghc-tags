@@ -18,11 +18,17 @@ import qualified Data.Text as T
 import qualified Data.Yaml as Y
 import qualified Data.Yaml.Pretty as Y
 
+-- | A language extension to either enable or disable.
+data ExtensionFlag
+  = EnableExtension Extension
+  | DisableExtension Extension
+  deriving (Eq, Show)
+
 data ProjectConfig = ProjectConfig
   { pcSourcePaths  :: [FilePath]
   , pcExcludePaths :: [FilePath]
   , pcLanguage     :: Language
-  , pcExtensions   :: [Extension]
+  , pcExtensions   :: [ExtensionFlag]
   , pcCppIncludes  :: [FilePath]
   , pcCppOptions   :: [String]
   }
@@ -36,7 +42,8 @@ defaultProjectConfig = ProjectConfig
                      , "dist-newstyle"
                      ]
   , pcLanguage     = Haskell2010
-  , pcExtensions   = [ BangPatterns
+  , pcExtensions   = map EnableExtension
+                     [ BangPatterns
                      , BlockArguments
                      , CApiFFI
                      , ExplicitForAll
@@ -83,7 +90,12 @@ adjustDynFlags ProjectConfig{..} = applyCppOptions
   where
     applyLanguage fs = lang_set fs (Just pcLanguage)
 
-    applyExtensions fs = foldl' xopt_set fs pcExtensions
+    applyExtensions fs = foldl' setExtension fs pcExtensions
+      where
+        setExtension :: DynFlags -> ExtensionFlag -> DynFlags
+        setExtension acc = \case
+          EnableExtension  ext -> xopt_set   acc ext
+          DisableExtension ext -> xopt_unset acc ext
 
     applyCppIncludes fs =
       fs { includePaths = addGlobalInclude (includePaths fs) pcCppIncludes
@@ -106,7 +118,7 @@ instance ToJSON ProjectConfig where
     [ "source_paths"  .= pcSourcePaths
     , "exclude_paths" .= pcExcludePaths
     , "language"      .= show pcLanguage
-    , "extensions"    .= map showExtension pcExtensions
+    , "extensions"    .= map showExtensionFlag pcExtensions
     , "cpp_includes"  .= pcCppIncludes
     , "cpp_options"   .= pcCppOptions
     ]
@@ -120,7 +132,7 @@ instance FromJSON ProjectConfig where
                                                parseLanguage v
                                                "language"
     pcExtensions   <- def pcExtensions   <$> explicitParseFieldMaybe'
-                                               (listParser parseExtension) v
+                                               (listParser parseExtensionFlag) v
                                                "extensions"
     pcCppIncludes  <- def pcCppIncludes  <$> v .:! "cpp_includes"
     pcCppOptions   <- def pcCppOptions   <$> v .:! "cpp_options"
@@ -140,11 +152,11 @@ instance FromJSON ProjectConfig where
         Nothing   -> fail $ "unknown language: " ++ T.unpack t
       parseLanguage inv = typeMismatch "String" inv
 
-      parseExtension :: Value -> Parser Extension
-      parseExtension (String t) = case readExtension t of
+      parseExtensionFlag :: Value -> Parser ExtensionFlag
+      parseExtensionFlag (String t) = case readExtensionFlag t of
         Just ext -> pure ext
         Nothing  -> fail $ "unknown extension: " ++ T.unpack t
-      parseExtension inv = typeMismatch "String" inv
+      parseExtensionFlag inv = typeMismatch "String" inv
 
   parseJSON v = prependFailure "parsing project configuration failed: " $
     typeMismatch "Object" v
@@ -166,14 +178,27 @@ readLanguage "Haskell98"   = Just Haskell98
 readLanguage "Haskell2010" = Just Haskell2010
 readLanguage _             = Nothing
 
-showExtension :: Extension -> T.Text
-showExtension Cpp = "CPP"
-showExtension ext = T.pack $ show ext
-
-readExtension :: T.Text -> Maybe Extension
-readExtension ext = ext `Map.lookup` exts
+showExtensionFlag :: ExtensionFlag -> T.Text
+showExtensionFlag = \case
+  EnableExtension  ext -> showExtension ext
+  DisableExtension ext -> "No" <> showExtension ext
   where
-    exts :: Map.Map T.Text Extension
-    exts = Map.fromList . (("CPP", Cpp) :)
-                        . map (\e -> (T.pack $ show e, e))
-                        $ filter (/= Cpp) [minBound..maxBound]
+    showExtension :: Extension -> T.Text
+    showExtension Cpp = "CPP"
+    showExtension ext = T.pack $ show ext
+
+-- | Parse an extension name. A @No@ prefix disables the extension instead of
+-- enabling it. The prefix is only stripped if the full name is not an extension
+-- itself, so @NondecreasingIndentation@ keeps its meaning.
+readExtensionFlag :: T.Text -> Maybe ExtensionFlag
+readExtensionFlag name = case readExtension name of
+  Just ext -> Just $ EnableExtension ext
+  Nothing  -> DisableExtension <$> (readExtension =<< T.stripPrefix "No" name)
+  where
+    readExtension :: T.Text -> Maybe Extension
+    readExtension ext = ext `Map.lookup` exts
+      where
+        exts :: Map.Map T.Text Extension
+        exts = Map.fromList . (("CPP", Cpp) :)
+                            . map (\e -> (T.pack $ show e, e))
+                            $ filter (/= Cpp) [minBound..maxBound]
