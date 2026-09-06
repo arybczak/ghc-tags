@@ -1,5 +1,6 @@
 # ghc-tags-1.11 (2026-??-??)
 * Add support for GHC 9.14 and drop support for GHC 9.8.
+* Accept `GHC2021` and `GHC2024` as values of the `language` configuration key.
 * Support disabling a language extension in the configuration file by prefixing
   its name with `No`, e.g. `NoStarIsType`.
 * Drop the `ghc-lib` dependency and the `ghc-lib` flag. The parser now comes

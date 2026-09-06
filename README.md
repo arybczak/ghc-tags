@@ -33,7 +33,8 @@ For more complicated projects you need to create the configuration file
 * `source_paths` - a list of paths for `ghc-tags` to process. Directories are
   traversed recursively.
 * `exclude_paths` - a list of paths for `ghc-tags` to exclude from processing.
-* `language` - the flavour of Haskell, either `Haskell98` or `Haskell2010`.
+* `language` - the flavour of Haskell, one of `Haskell98`, `Haskell2010`,
+  `GHC2021` or `GHC2024`.
 * `extensions` - a list of GHC language extensions to enable when parsing. A
   `No` prefix disables the extension instead, e.g. `NoStarIsType`. Note that GHC
   needs much less extensions for parsing alone, so you should almost never need

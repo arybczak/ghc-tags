@@ -174,9 +174,12 @@ projectConfigKeys = [ "source_paths"
 -- Utils
 
 readLanguage :: T.Text -> Maybe Language
-readLanguage "Haskell98"   = Just Haskell98
-readLanguage "Haskell2010" = Just Haskell2010
-readLanguage _             = Nothing
+readLanguage = \case
+  "Haskell98" -> Just Haskell98
+  "Haskell2010" -> Just Haskell2010
+  "GHC2021" -> Just GHC2021
+  "GHC2024" -> Just GHC2024
+  _ -> Nothing
 
 showExtensionFlag :: ExtensionFlag -> T.Text
 showExtensionFlag = \case
