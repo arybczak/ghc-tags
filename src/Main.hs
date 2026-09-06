@@ -18,11 +18,13 @@ import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
 import GHC.Data.StringBuffer
 import GHC.Driver.Env.Types
+import GHC.Driver.Errors.Types
 import GHC.Driver.Monad
 import GHC.Driver.Pipeline
 import GHC.Driver.Ppr
 import GHC.Driver.Session
 import GHC.Hs
+import GHC.Parser.Errors.Types
 import GHC.Parser.Lexer
 import GHC.Types.Error
 import GHC.Types.SrcLoc
@@ -131,7 +133,7 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
       where
         processFile :: HscEnv -> FilePath -> HsFileType -> UTCTime -> IO ()
         processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
-          handle showErr $ preprocess env hsFile Nothing Nothing >>= \case
+          handle showErr $ preprocessFile hsFile >>= \case
             Left errs -> report (hsc_dflags env) (getMessages errs)
             Right (flags, file) -> do
               --when (file /= rawFile) $ do
@@ -161,6 +163,47 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
               sequence_ [ putStrLn $ showSDoc flags msg
                         | msg <- pprMsgEnvelopeBagWithLocDefault msgs
                         ]
+
+            -- GHC rejects a file when an OPTIONS_GHC pragma contains a flag
+            -- that the linked ghc library doesn't know, e.g. when the source
+            -- tree is built with a newer compiler. Such flags don't influence
+            -- tag generation, so blank them out and preprocess the file again.
+            preprocessFile
+              :: FilePath
+              -> IO (Either DriverMessages (DynFlags, FilePath))
+            preprocessFile file = preprocess env file Nothing Nothing >>= \case
+              Left errs
+                | flagSpans@(_ : _) <- unknownFlagSpans errs -> do
+                    content <- T.decodeUtf8Lenient <$> BS.readFile file
+                    let buffer = stringToStringBuffer . T.unpack $ blankSpans flagSpans content
+                    preprocess env file (Just buffer) Nothing
+              result -> pure result
+
+            unknownFlagSpans :: DriverMessages -> [RealSrcSpan]
+            unknownFlagSpans errs = flip mapMaybe (bagToList $ getMessages errs) $ \msg ->
+              case (errMsgDiagnostic msg, errMsgSpan msg) of
+                (DriverPsHeaderMessage (PsHeaderMessage PsErrUnknownOptionsPragma{}), RealSrcSpan s _)
+                  | srcSpanStartLine s == srcSpanEndLine s -> Just s
+                _ -> Nothing
+
+            -- Overwrite the spans with spaces so that the line and column
+            -- numbers of the rest of the file stay the same.
+            blankSpans :: [RealSrcSpan] -> T.Text -> T.Text
+            blankSpans flagSpans = T.unlines . zipWith blankLine [1 ..] . T.lines
+              where
+                blankLine :: Int -> T.Text -> T.Text
+                blankLine lineNo line =
+                  foldl' blank line $ filter ((== lineNo) . srcSpanStartLine) flagSpans
+
+                -- Leave the line alone if the span doesn't point at a flag, as
+                -- then the column numbers don't match the decoded content.
+                blank :: T.Text -> RealSrcSpan -> T.Text
+                blank line s
+                  | "-" `T.isPrefixOf` flag = before <> T.replicate (T.length flag) " " <> after
+                  | otherwise = line
+                  where
+                    (before, rest) = T.splitAt (srcSpanStartCol s - 1) line
+                    (flag, after) = T.splitAt (srcSpanEndCol s - srcSpanStartCol s) rest
 
         -- Alex and Hsc files need to be preprocessed before going into GHC.
         withHsFile :: FilePath -> HsFileType -> (FilePath -> IO ()) -> IO ()

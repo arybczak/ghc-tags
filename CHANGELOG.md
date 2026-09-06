@@ -1,4 +1,7 @@
 # ghc-tags-1.11 (2026-??-??)
+* Ignore a flag in an `OPTIONS_GHC` pragma that the bundled GHC API doesn't
+  know. Earlier versions reported an error and dropped all the tags of the file.
+  This made a source tree that is built with a newer compiler hard to index.
 * Recover from a broken tags file instead of crashing. A header comment without
   its closing slash and a byte that is not valid UTF-8 both ended the run with
   an uncaught exception.
