@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 module GhcTags.Config.Args where
 
+import Control.Monad
 import Data.Version
 import Options.Applicative
 
@@ -65,12 +66,20 @@ argsParser defaultThreads = do
                           <> help "Configuration file"
 
     threads :: Parser Int
-    threads = option auto $ long "threads"
-                         <> short 'j'
-                         <> metavar "NUMBER"
-                         <> value defaultThreads
-                         <> showDefault
-                         <> help "Number of threads to use"
+    threads = option positive $ long "threads"
+                             <> short 'j'
+                             <> metavar "NUMBER"
+                             <> value defaultThreads
+                             <> showDefault
+                             <> help "Number of threads to use"
+      where
+        -- Zero deadlocks the queue and 'setNumCapabilities' rejects anything
+        -- below one, so stop such a value here with a readable message.
+        positive :: ReadM Int
+        positive = do
+          n <- auto
+          when (n < 1) $ readerError "the number of threads must be at least 1"
+          pure n
 
     sourcePaths :: Parser [FilePath]
     sourcePaths = some . argument str $ metavar "<source paths...>"

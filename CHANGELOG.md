@@ -1,4 +1,6 @@
 # ghc-tags-1.11 (2026-??-??)
+* Reject a `--threads` value below 1 with a usage error. Earlier versions ended
+  the run with an uncaught error from `setNumCapabilities`.
 * Enable `BinaryLiterals`, `LinearTypes` and `QualifiedDo` by default, and
   `MultilineStrings` with GHC 9.12 and later.
 * Ignore a flag in an `OPTIONS_GHC` pragma that the bundled GHC API doesn't
