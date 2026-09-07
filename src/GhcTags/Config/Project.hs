@@ -65,7 +65,6 @@ defaultProjectConfig = ProjectConfig
                      , PatternSynonyms
                      , QualifiedDo
                      , QuasiQuotes
-                     , RecursiveDo
                      , TemplateHaskellQuotes
                      , TypeApplications
                      , UnicodeSyntax
