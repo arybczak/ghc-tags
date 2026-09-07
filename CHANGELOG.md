@@ -1,4 +1,8 @@
 # ghc-tags-1.11 (2026-??-??)
+* Recognise `module M (module M) where` as an export list that exports
+  everything. Earlier versions saw no matching name in such a list and marked
+  every tag with the ctags `file:` field. That field tells vim that the tag is
+  visible only inside its own file.
 * Reject a `--threads` value below 1 with a usage error. Earlier versions ended
   the run with an uncaught error from `setNumCapabilities`.
 * Enable `BinaryLiterals`, `LinearTypes` and `QualifiedDo` by default, and

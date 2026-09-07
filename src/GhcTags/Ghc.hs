@@ -178,7 +178,17 @@ getGhcTags (L _ HsModule { hsmodName, hsmodDecls, hsmodExports }) =
   ++ hsDeclsToGhcTags mies hsmodDecls
   where
     mies :: Maybe [IE GhcPs]
-    mies = map unLoc . unLoc <$> hsmodExports
+    mies = case map unLoc . unLoc <$> hsmodExports of
+      -- `module M (module M) where` exports everything M defines, but the list
+      -- names no entity, so looking a name up in it always fails. 'isExported'
+      -- takes an absent list to mean that everything is exported.
+      Just ies | any exportsSelf ies -> Nothing
+      exports                        -> exports
+      where
+        exportsSelf :: IE GhcPs -> Bool
+        exportsSelf = \case
+          IEModuleContents _ (L _ name) -> Just name == (unLoc <$> hsmodName)
+          _                             -> False
 
     mkModNameTag :: LocatedA ModuleName -> GhcTag
     mkModNameTag (L l modName) =
