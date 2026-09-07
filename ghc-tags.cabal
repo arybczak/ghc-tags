@@ -21,7 +21,7 @@ source-repository head
   location: https://github.com/arybczak/ghc-tags
 
 executable ghc-tags
-  ghc-options:         -Wall -Wunused-packages -threaded -rtsopts -with-rtsopts=-A4m
+  ghc-options:         -Wall -Wunused-packages -threaded -rtsopts
 
   build-depends:       base >=4.20 && <4.23
                      , aeson >= 2.0.0.0
