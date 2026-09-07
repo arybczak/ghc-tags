@@ -1,4 +1,6 @@
 # ghc-tags-1.11 (2026-??-??)
+* Enable `BinaryLiterals`, `LinearTypes`, `QualifiedDo` and `RecursiveDo` by
+  default, and `MultilineStrings` with GHC 9.12 and later.
 * Ignore a flag in an `OPTIONS_GHC` pragma that the bundled GHC API doesn't
   know. Earlier versions reported an error and dropped all the tags of the file.
   This made a source tree that is built with a newer compiler hard to index.

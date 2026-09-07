@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module GhcTags.Config.Project where
 
 import Data.Aeson
@@ -45,6 +46,7 @@ defaultProjectConfig = ProjectConfig
   , pcLanguage     = Haskell2010
   , pcExtensions   = map EnableExtension
                      [ BangPatterns
+                     , BinaryLiterals
                      , BlockArguments
                      , CApiFFI
                      , ExplicitForAll
@@ -52,12 +54,18 @@ defaultProjectConfig = ProjectConfig
                      , GADTSyntax
                      , ImportQualifiedPost
                      , LambdaCase
+                     , LinearTypes
                      , MagicHash
+#if __GLASGOW_HASKELL__ >= 912
+                     , MultilineStrings
+#endif
                      , MultiWayIf
                      , NumericUnderscores
                      , OverloadedLabels
                      , PatternSynonyms
+                     , QualifiedDo
                      , QuasiQuotes
+                     , RecursiveDo
                      , TemplateHaskellQuotes
                      , TypeApplications
                      , UnicodeSyntax
