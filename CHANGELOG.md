@@ -2,6 +2,8 @@
 * Generate a tag for each name that a pattern binding defines, e.g. `pairA`
   and `pairB` in `(pairA, pairB) = ...`. Earlier versions skipped pattern
   bindings. The tag points at the start of the pattern.
+* Generate a tag for a standalone `deriving instance` declaration, with the
+  same kind as a class instance.
 * Fix the tag of an associated type default, e.g. `type AT a = Maybe Int` in a
   class body. Earlier versions read the name from the wrong side of the
   equation and tagged the head of the right-hand side, `Maybe` in this

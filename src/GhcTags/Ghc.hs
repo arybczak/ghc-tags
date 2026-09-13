@@ -167,6 +167,7 @@ mkGhcTag (L loc rdrName) gtKind gtIsExported =
 --  * /type classes/
 --  * /type class members/
 --  * /type class instances/
+--  * /standalone deriving declarations/
 --  * /type families/
 --  * /type family instances/
 --  * /data type families/
@@ -329,8 +330,9 @@ hsDeclsToGhcTags mies = foldr go []
               Nothing  ->       tags
               Just tag -> tag : tags
 
-      -- deriving declaration
-      DerivD {} -> tags
+      -- standalone deriving declaration
+      DerivD _ DerivDecl { deriv_type = HsWC { hswc_body = L _ HsSig { sig_body } } } ->
+        maybe tags (: tags) (mkLHsTypeTag decLoc sig_body)
 
       -- value declaration
       ValD _ hsBind  -> mkHsBindLRTags decLoc hsBind ++ tags
