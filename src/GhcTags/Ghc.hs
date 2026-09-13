@@ -280,16 +280,11 @@ hsDeclsToGhcTags mies = foldr go []
             ++ ((\a -> mkFamilyDeclTags decLoc a (Just tcdLName)) . unLoc) `mapMaybe` tcdATs
             -- associated type defaults (data type families, type families
             -- (open or closed)
-            ++ foldr
-                (\(L _ decl@(TyFamInstDecl { tfid_eqn })) tags' ->
-                    case tfid_eqn of
-                      FamEqn { feqn_rhs = L _ hsType } ->
-                        case hsTypeTagName hsType of
-                          -- TODO: add a `default` field
-                          Just a  -> mkGhcTag' decLoc a (GtkTypeFamilyInstance decl) : tags'
-                          Nothing -> tags'
-                )
-                [] tcdATDefs
+            ++ map
+                (\(L _ decl@TyFamInstDecl { tfid_eqn = FamEqn { feqn_tycon } }) ->
+                    mkGhcTagForMember decLoc feqn_tycon tcdLName
+                                      (GtkTypeFamilyInstance decl))
+                tcdATDefs
             ++ tags
 
       -- Instance declarations

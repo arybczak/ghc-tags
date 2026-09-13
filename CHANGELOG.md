@@ -1,4 +1,9 @@
 # ghc-tags-1.11 (2026-??-??)
+* Fix the tag of an associated type default, e.g. `type AT a = Maybe Int` in a
+  class body. Earlier versions read the name from the wrong side of the
+  equation and tagged the head of the right-hand side, `Maybe` in this
+  example. A jump to `Maybe` landed in the class, and `AT` had no tag for the
+  default. The tag now carries the name of the type family.
 * Don't generate a tag for a `default` method signature in a class. Earlier
   versions tagged it as a second class member with the same name. A jump to
   the member then offered a line that is not its declaration.
