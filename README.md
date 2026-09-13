@@ -50,7 +50,7 @@ picked instead. You can inspect the defaults by executing `ghc-tags --default`.
 
 **Note:** it is possible to specify multiple project configurations in the
 configuration file by separating them with `---`. For example, here is a
-configuration for GHC on Linux (compiler, utils and base):
+configuration for GHC on Linux (the compiler, the boot libraries and haddock):
 
 ```yaml
 source_paths:
@@ -59,26 +59,32 @@ source_paths:
 cpp_includes:
 - _build/stage1/compiler/build
 - compiler
-- includes/dist-derivedconstants/header
 
 ---
 
 source_paths:
 - libraries/base
+- libraries/ghc-internal
 
 exclude_paths:
-- libraries/base/GHC/Conc/POSIX/Const.hsc
-- libraries/base/GHC/Event/Windows.hsc
-- libraries/base/GHC/Event/Windows/ConsoleEvent.hsc
-- libraries/base/GHC/Event/Windows/FFI.hsc
-- libraries/base/GHC/IO/Windows/Handle.hsc
-- libraries/base/System/CPUTime/Windows.hsc
+- libraries/base/src/System/CPUTime/Javascript.hs
+- libraries/base/src/System/CPUTime/Windows.hsc
 - libraries/base/tests
+- libraries/ghc-internal/src/GHC/Internal/Conc/POSIX/Const.hsc
+- libraries/ghc-internal/src/GHC/Internal/Event/Windows.hsc
+- libraries/ghc-internal/src/GHC/Internal/Event/Windows/ConsoleEvent.hsc
+- libraries/ghc-internal/src/GHC/Internal/Event/Windows/FFI.hsc
+- libraries/ghc-internal/src/GHC/Internal/IO/Windows/Handle.hsc
+- libraries/ghc-internal/src/GHC/Internal/JS/Prim.hs
 
 cpp_includes:
-- _build/stage1/libraries/base/build/include
-- includes
-- libraries/base/include
+- _build/stage1/libraries/ghc-internal/build/include
+- _build/stage1/rts/build/include
+- libraries/ghc-internal/include
+- rts/include
+
+cpp_options:
+- -DBIGNUM_GMP
 
 ---
 
@@ -97,13 +103,45 @@ source_paths:
 - libraries/ghc-boot
 - libraries/ghc-boot-th
 - libraries/ghc-compact
-- libraries/ghc-heap
+- libraries/ghc-experimental
 - libraries/ghc-prim
+- libraries/ghc-platform
+- libraries/template-haskell
 
 exclude_paths:
 - libraries/ghc-compact/tests
-- libraries/ghc-heap/tests
 - libraries/ghc-prim/tests
+
+---
+
+source_paths:
+- libraries/ghc-heap
+
+cpp_includes:
+- _build/stage1/rts/build/include
+- rts/include
+
+cpp_options:
+- -DMIN_TOOL_VERSION_ghc(x,y,z)=1
+
+exclude_paths:
+- libraries/ghc-heap/tests
+
+---
+
+source_paths:
+- utils/haddock/haddock
+- utils/haddock/haddock-api
+- utils/haddock/haddock-library
+- utils/haddock/driver
+
+cpp_includes:
+- _build/stage1/rts/build/include
+- rts/include
+
+exclude_paths:
+- utils/haddock/haddock-api/src/Haddock/InterfaceFile.hs
+- utils/haddock/haddock-api/src/Haddock/Types.hs
 ```
 
 ## Acknowledgments
