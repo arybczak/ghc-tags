@@ -18,6 +18,7 @@ import GHC.Hs.Expr
 import GHC.Hs.Extension
 import GHC.Hs.ImpExp
 import GHC.Hs.Type hiding (hsSigWcType)
+import GHC.Hs.Utils
 import GHC.Parser.Annotation
 import GHC.Types.Name (nameOccName, occNameFS)
 import GHC.Types.Name.Reader
@@ -159,6 +160,7 @@ mkGhcTag (L loc rdrName) gtKind gtIsExported =
 --
 --  * /module name/
 --  * /top level terms/
+--  * /pattern bindings/
 --  * /data types/
 --  * /record fields/
 --  * /type synonyms/
@@ -452,12 +454,14 @@ hsDeclsToGhcTags mies = foldr go []
           in   mkGhcTag' decLoc fun_id GtkFunction
              : concatMap (mkHsLocalBindsTags decLoc) binds
 
-        -- TODO
-        -- This is useful fo generating tags for
-        -- ````
-        -- Just x = lhs
-        -- ```
-        PatBind {} -> []
+        PatBind { pat_lhs, pat_rhs } ->
+          -- 'collectPatBinders' drops the location of each binder, so every
+          -- tag points at the start of the pattern.
+          let binder :: RdrName -> GhcTag
+              binder name =
+                mkGhcTag' decLoc (L (noAnnSrcSpan (getLocA pat_lhs)) name) GtkTerm
+          in   map binder (collectPatBinders CollNoDictBinders pat_lhs)
+            ++ mkHsLocalBindsTags decLoc (grhssLocalBinds pat_rhs)
 
         -- According to the GHC documentation VarBinds are introduced by the
         -- type checker, so ghc-tags will never encounter them.
