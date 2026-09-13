@@ -28,7 +28,9 @@ ways nor include any C sources it should be enough to execute `ghc-tags -e` (for
 etags) or `ghc-tags -c` (for ctags) in the root directory of the project.
 
 For more complicated projects you need to create the configuration file
-(`ghc-tags.yaml` by default). It can contain the following keys:
+(`ghc-tags.yaml` or `.ghc-tags.yaml` by default, the first one that exists is
+read and a warning is printed when both exist). It can contain the following
+keys:
 
 * `source_paths` - a list of paths for `ghc-tags` to process. Directories are
   traversed recursively.

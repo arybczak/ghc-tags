@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module GhcTags.Config.Project where
 
+import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Maybe
@@ -73,16 +74,35 @@ defaultProjectConfig = ProjectConfig
   , pcCppOptions  = []
   }
 
--- | Read the project configurations from a file. Return 'Nothing' when the file
--- exists and cannot be parsed.
-getProjectConfigs :: FilePath -> IO (Maybe [ProjectConfig])
-getProjectConfigs file = doesFileExist file >>= \case
-  True  -> Y.decodeAllFileEither file >>= \case
+-- | Configuration files probed when '--config' is not given, in the order of
+-- precedence.
+defaultConfigFiles :: [FilePath]
+defaultConfigFiles = ["ghc-tags.yaml", ".ghc-tags.yaml"]
+
+-- | Read the project configurations from the given file or, when there is
+-- none, from the first of 'defaultConfigFiles' that exists. Return 'Nothing'
+-- when the file exists and cannot be parsed.
+getProjectConfigs :: Maybe FilePath -> IO (Maybe [ProjectConfig])
+getProjectConfigs mfile = resolve >>= \case
+  Nothing   -> pure $ Just [defaultProjectConfig]
+  Just file -> Y.decodeAllFileEither file >>= \case
     Left e  -> do
       hPutStrLn stderr $ file ++ ": " ++ Y.prettyPrintParseException e
       pure Nothing
     Right pcs -> pure $ Just pcs
-  False -> pure $ Just [defaultProjectConfig]
+  where
+    resolve :: IO (Maybe FilePath)
+    resolve = case mfile of
+      Just file -> doesFileExist file >>= \case
+        True  -> pure $ Just file
+        False -> pure Nothing
+      Nothing -> filterM doesFileExist defaultConfigFiles >>= \case
+        []            -> pure Nothing
+        file : others -> do
+          forM_ others $ \other -> hPutStrLn stderr $
+            "Warning: both " ++ file ++ " and " ++ other
+            ++ " exist, reading " ++ file
+          pure $ Just file
 
 ppProjectConfig :: ProjectConfig -> String
 ppProjectConfig = BS.unpack . Y.encodePretty conf
