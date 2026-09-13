@@ -2,6 +2,7 @@
 module GhcTags.Config.Args where
 
 import Control.Monad
+import Data.List
 import Data.Version
 import Options.Applicative
 
@@ -16,7 +17,7 @@ defaultOutputFile ETag = "TAGS"
 -- | Get source paths from the configuration file or command line arguments.
 data SourcePaths
   = SourceArgs [FilePath]
-  | ConfigFile FilePath
+  | ConfigFile (Maybe FilePath)
   deriving Show
 
 data Args = Args
@@ -58,12 +59,11 @@ argsParser defaultThreads = do
                        <> value ""
                        <> showDefaultWith (const "TAGS (etags) or tags (ctags)")
 
-    configFile :: Parser FilePath
-    configFile = strOption $ long "config"
+    configFile :: Parser (Maybe FilePath)
+    configFile = optional . strOption $ long "config"
                           <> metavar "FILE"
-                          <> value "ghc-tags.yaml"
-                          <> showDefaultWith id
-                          <> help "Configuration file"
+                          <> help ("Configuration file (default: "
+                                   ++ intercalate ", then " defaultConfigFiles ++ ")")
 
     threads :: Parser Int
     threads = option positive $ long "threads"
