@@ -1,4 +1,4 @@
-# ghc-tags-1.11 (2026-??-??)
+# ghc-tags-1.11 (2026-09-13)
 * Generate a tag for each name that a pattern binding defines, e.g. `pairA`
   and `pairB` in `(pairA, pairB) = ...`. Earlier versions skipped pattern
   bindings. The tag points at the start of the pattern.
