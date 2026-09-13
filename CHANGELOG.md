@@ -1,4 +1,7 @@
 # ghc-tags-1.11 (2026-??-??)
+* Don't generate a tag for a `default` method signature in a class. Earlier
+  versions tagged it as a second class member with the same name. A jump to
+  the member then offered a line that is not its declaration.
 * Read the configuration from `.ghc-tags.yaml` when `ghc-tags.yaml` doesn't
   exist. When both files exist, `ghc-tags.yaml` is read and a warning names
   the file in use.

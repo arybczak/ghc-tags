@@ -478,11 +478,15 @@ hsDeclsToGhcTags mies = foldr go []
             _ -> []
 
     mkClsMemberTags :: SrcSpan -> LocatedN RdrName -> Sig GhcPs -> [GhcTag]
-    mkClsMemberTags decLoc clsName (ClassOpSig _ _ lhs hsSigWcType) =
-      (\n ->  mkGhcTagForMember decLoc n clsName $
-        GtkTypeClassMember HsWC { hswc_ext = NoExtField
-                                , hswc_body = hsSigWcType
-                                }) `map` lhs
+    mkClsMemberTags decLoc clsName (ClassOpSig _ isDefault lhs hsSigWcType)
+      -- A default signature (`default meth :: ...`) constrains the default
+      -- implementation, it doesn't declare the member.
+      | isDefault = []
+      | otherwise =
+          (\n ->  mkGhcTagForMember decLoc n clsName $
+            GtkTypeClassMember HsWC { hswc_ext = NoExtField
+                                    , hswc_body = hsSigWcType
+                                    }) `map` lhs
     mkClsMemberTags _ _ _ = []
 
 
