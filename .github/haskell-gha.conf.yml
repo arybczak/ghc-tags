@@ -1,0 +1,4 @@
+hooks:
+  after-build:
+    - name: Generate tags for this repository
+      run: ./scripts/check-tags.sh

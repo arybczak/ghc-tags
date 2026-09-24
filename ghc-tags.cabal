@@ -10,11 +10,11 @@ author:              Andrzej Rybczak
 maintainer:          andrzej@rybczak.net
 copyright:           Andrzej Rybczak
 category:            Development
-extra-source-files:  CHANGELOG.md
+extra-doc-files:     CHANGELOG.md
                      README.md
 homepage:            https://github.com/arybczak/ghc-tags
 bug-reports:         https://github.com/arybczak/ghc-tags/issues
-tested-with:         GHC == { 9.10.3, 9.12.4, 9.14.1 }
+tested-with:         GHC ^>= { 9.10, 9.12, 9.14 }
 
 source-repository head
   type:     git
