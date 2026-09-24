@@ -2,24 +2,22 @@
 module GhcTags.Config.Project where
 
 import Control.Monad
-import Data.Aeson
-import Data.Aeson.Types
-import Data.Maybe
 import Data.List
-import Data.Ord
+import Data.YAML
+import Data.YAML.Event hiding (Scalar)
+import Data.YAML.Schema
+import Data.YAML.Token
 import GHC.Driver.Flags
 import GHC.Driver.Session
 import GHC.LanguageExtensions
 import GHC.Settings
 import System.Directory
 import System.IO
-import qualified Data.Aeson.Key as K
-import qualified Data.Aeson.KeyMap as K
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
-import qualified Data.Yaml as Y
-import qualified Data.Yaml.Pretty as Y
+import qualified Data.Text.Encoding as T
 
 -- | A language extension to either enable or disable.
 data ExtensionFlag
@@ -85,12 +83,25 @@ defaultConfigFiles = ["ghc-tags.yaml", ".ghc-tags.yaml"]
 getProjectConfigs :: Maybe FilePath -> IO (Maybe [ProjectConfig])
 getProjectConfigs mfile = resolve >>= \case
   Nothing   -> pure $ Just [defaultProjectConfig]
-  Just file -> Y.decodeAllFileEither file >>= \case
-    Left e  -> do
-      hPutStrLn stderr $ file ++ ": " ++ Y.prettyPrintParseException e
-      pure Nothing
-    Right pcs -> pure $ Just pcs
+  Just file -> do
+    content <- BL.fromStrict <$> BS.readFile file
+    case decode content of
+      Left (pos, e) -> do
+        hPutStr stderr $ prettyError file content pos e
+        pure Nothing
+      Right pcs -> pure $ Just pcs
   where
+    -- HsYAML counts columns from 0, but editors count them from 1.
+    prettyError :: FilePath -> BL.ByteString -> Pos -> String -> String
+    prettyError file content pos e
+      | posCharOffset pos < 0 = file ++ ": " ++ e ++ "\n"
+      | otherwise             = file ++ ":" ++ show (posLine pos)
+                             ++ ":" ++ show (posColumn pos + 1)
+                             ++ ": " ++ e ++ "\n" ++ excerpt
+      where
+        excerpt :: String
+        excerpt = unlines . drop 1 . lines $ prettyPosWithSource pos content ""
+
     resolve :: IO (Maybe FilePath)
     resolve = case mfile of
       Just file -> doesFileExist file >>= \case
@@ -104,13 +115,49 @@ getProjectConfigs mfile = resolve >>= \case
             ++ " exist, reading " ++ file
           pure $ Just file
 
+-- | Render the configuration by hand, because the YAML encoder sorts the keys
+-- of a mapping.
 ppProjectConfig :: ProjectConfig -> String
-ppProjectConfig = BS.unpack . Y.encodePretty conf
+ppProjectConfig ProjectConfig{..} = concat
+  [ field "source_paths"  $ map T.pack pcSourcePaths
+  , field "exclude_paths" $ map T.pack pcExcludePaths
+  , field "language"      . T.pack $ show pcLanguage
+  , field "extensions"    $ map showExtensionFlag pcExtensions
+  , field "cpp_includes"  $ map T.pack pcCppIncludes
+  , field "cpp_options"   $ map T.pack pcCppOptions
+  ]
   where
-    conf = Y.setConfCompare (keyOrder projectConfigKeys) Y.defConfig
+    field :: ToYAML a => T.Text -> a -> String
+    field key value = T.unpack key ++ ":" ++ separator ++ rendered
+      where
+        node :: Node ()
+        node = toYAML value
 
-    keyOrder :: [T.Text] -> T.Text -> T.Text -> Ordering
-    keyOrder ks = comparing $ \k -> fromMaybe maxBound (elemIndex k ks)
+        separator :: String
+        separator = case node of
+          Sequence _ _ (_ : _) -> "\n"
+          _                    -> " "
+
+        rendered :: String
+        rendered = T.unpack . T.decodeUtf8 . BL.toStrict
+                 $ encodeNode' encoder UTF8 [Doc node]
+
+    -- The core encoder quotes every string with a dash, e.g. dist-newstyle.
+    encoder :: SchemaEncoder
+    encoder = setScalarStyle scalar coreSchemaEncoder
+      where
+        scalar :: Scalar -> Either String (Tag, ScalarStyle, T.Text)
+        scalar = \case
+          SStr t | isPlain t -> Right (untagged, Plain, t)
+          s                  -> schemaEncoderScalar coreSchemaEncoder s
+
+        isPlain :: T.Text -> Bool
+        isPlain t = case T.uncons t of
+          Just (c, _) -> c `notElem` ['-', ' ']
+                      && T.last t /= ' '
+                      && T.all (\x -> x == '-' || isPlainChar x) t
+                      && not (isAmbiguous coreSchemaResolver t)
+          Nothing     -> False
 
 adjustDynFlags :: ProjectConfig -> DynFlags -> DynFlags
 adjustDynFlags ProjectConfig{..} = applyCppOptions
@@ -141,55 +188,77 @@ adjustDynFlags ProjectConfig{..} = applyCppOptions
                  }
 
 ----------------------------------------
--- JSON instances
+-- YAML instances
 
-instance ToJSON ProjectConfig where
-  toJSON ProjectConfig{..} = object
-    [ "source_paths"  .= pcSourcePaths
-    , "exclude_paths" .= pcExcludePaths
-    , "language"      .= show pcLanguage
-    , "extensions"    .= map showExtensionFlag pcExtensions
-    , "cpp_includes"  .= pcCppIncludes
-    , "cpp_options"   .= pcCppOptions
-    ]
-
-instance FromJSON ProjectConfig where
-  parseJSON (Object v) = do
-    checkUnknownKeys . map K.toText $ K.keys v
-    pcSourcePaths  <- def pcSourcePaths  <$> v .:! "source_paths"
-    pcExcludePaths <- def pcExcludePaths <$> v .:! "exclude_paths"
-    pcLanguage     <- def pcLanguage     <$> explicitParseFieldMaybe'
-                                               parseLanguage v
-                                               "language"
-    pcExtensions   <- def pcExtensions   <$> explicitParseFieldMaybe'
-                                               (listParser parseExtensionFlag) v
-                                               "extensions"
-    pcCppIncludes  <- def pcCppIncludes  <$> v .:! "cpp_includes"
-    pcCppOptions   <- def pcCppOptions   <$> v .:! "cpp_options"
+instance FromYAML ProjectConfig where
+  parseYAML = withMapping $ \m -> do
+    fields <- fmap Map.fromList . forM (Map.toList m) $ \case
+      (Scalar _ (SStr key), value) -> pure (key, value)
+      (key, _)                     -> mismatch "a string" key
+    checkUnknownKeys $ Map.keys fields
+    let field :: (Node Pos -> Parser a) -> T.Text -> (ProjectConfig -> a) -> Parser a
+        field parse key def = maybe (pure $ def defaultProjectConfig) parse
+                                    (key `Map.lookup` fields)
+    pcSourcePaths  <- field (listOf string)             "source_paths"  pcSourcePaths
+    pcExcludePaths <- field (listOf string)             "exclude_paths" pcExcludePaths
+    pcLanguage     <- field parseLanguage               "language"      pcLanguage
+    pcExtensions   <- field (listOf parseExtensionFlag) "extensions"    pcExtensions
+    pcCppIncludes  <- field (listOf string)             "cpp_includes"  pcCppIncludes
+    pcCppOptions   <- field (listOf string)             "cpp_options"   pcCppOptions
     pure ProjectConfig{..}
     where
-      def f = fromMaybe (f defaultProjectConfig)
-
       checkUnknownKeys :: [T.Text] -> Parser ()
       checkUnknownKeys keys = case keys \\ projectConfigKeys of
         []  -> pure ()
         [k] -> fail $ "unknown key: "  ++ T.unpack k
         ks  -> fail $ "unknown keys: " ++ intercalate ", " (map T.unpack ks)
 
-      parseLanguage :: Value -> Parser Language
-      parseLanguage (String t) = case readLanguage t of
+      string :: Node Pos -> Parser String
+      string = text $ pure . T.unpack
+
+      parseLanguage :: Node Pos -> Parser Language
+      parseLanguage = text $ \t -> case readLanguage t of
         Just lang -> pure lang
         Nothing   -> fail $ "unknown language: " ++ T.unpack t
-      parseLanguage inv = typeMismatch "String" inv
 
-      parseExtensionFlag :: Value -> Parser ExtensionFlag
-      parseExtensionFlag (String t) = case readExtensionFlag t of
+      parseExtensionFlag :: Node Pos -> Parser ExtensionFlag
+      parseExtensionFlag = text $ \t -> case readExtensionFlag t of
         Just ext -> pure ext
         Nothing  -> fail $ "unknown extension: " ++ T.unpack t
-      parseExtensionFlag inv = typeMismatch "String" inv
 
-  parseJSON v = prependFailure "parsing project configuration failed: " $
-    typeMismatch "Object" v
+      -- The with* functions of HsYAML name the kinds of nodes with YAML tags,
+      -- e.g. "expected !!seq instead of !!int", so a mismatch is reported here.
+
+      withMapping :: (Mapping Pos -> Parser a) -> Node Pos -> Parser a
+      withMapping parse node = case node of
+        Mapping{} -> withMap "a mapping" parse node
+        _         -> mismatch "a mapping" node
+
+      listOf :: (Node Pos -> Parser a) -> Node Pos -> Parser [a]
+      listOf parse node = case node of
+        Sequence{} -> withSeq "a list" (mapM parse) node
+        _          -> mismatch "a list" node
+
+      text :: (T.Text -> Parser a) -> Node Pos -> Parser a
+      text parse node = case node of
+        Scalar _ (SStr _) -> withStr "a string" parse node
+        _                 -> mismatch "a string" node
+
+      mismatch :: String -> Node Pos -> Parser a
+      mismatch expected node = failAtNode node $
+        "expected " ++ expected ++ ", but got " ++ actual
+        where
+          actual :: String
+          actual = case node of
+            Scalar _ SNull         -> "an empty value"
+            Scalar _ (SBool _)     -> "a boolean"
+            Scalar _ (SInt _)      -> "a number"
+            Scalar _ (SFloat _)    -> "a number"
+            Scalar _ (SStr _)      -> "a string"
+            Scalar _ SUnknown{}    -> "a value with an unknown tag"
+            Mapping{}              -> "a mapping"
+            Sequence{}             -> "a list"
+            Anchor{}               -> "an anchor"
 
 projectConfigKeys :: [T.Text]
 projectConfigKeys = [ "source_paths"

@@ -11,6 +11,7 @@ import Data.Char
 import Data.Function
 import Data.List
 import Data.Maybe (mapMaybe)
+import Data.Primitive.Array
 import Data.Time
 import Data.Time.Format.ISO8601
 import GHC (GhcException, setSessionDynFlags)
@@ -45,7 +46,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
-import qualified Data.Vector as V
 
 import GhcTags
 import GhcTags.Config.Args
@@ -447,14 +447,14 @@ addExCommands file tags = do
       putStrLn $ "Unexpected error: " ++ show err
       pure Nothing
     Right content -> do
-      let fileLines = V.fromList $ BS.lines content
+      let fileLines = arrayFromList $ BS.lines content
       pure . Just $ fillExCommands fileLines tags
   where
-    fillExCommands :: V.Vector BS.ByteString -> [CTag] -> [CTag]
+    fillExCommands :: Array BS.ByteString -> [CTag] -> [CTag]
     fillExCommands fileLines = mapMaybe $ \tag -> case tagAddr tag of
       TagCommand{}        -> Just tag
       TagLine lineNo      -> do
-        line <- fileLines V.!? (lineNo - 1)
+        line <- indexArrayMaybe fileLines (lineNo - 1)
         let TagFields fields = tagFields tag
             -- Ex mode forward search command. Slashes need to be escaped.
             exCommand = T.concat
@@ -474,23 +474,28 @@ addFileOffsets file tags = do
       putStrLn $ "Unexpected error: " ++ show err
       pure Nothing
     Right content -> do
-      let linesWithOffsets = V.fromList
+      let linesWithOffsets = arrayFromList
                            . snd
                            . mapAccumL addOffset 0
                            . BS.lines
                            $ content
       pure . Just $ fillOffsets linesWithOffsets tags
   where
-    fillOffsets :: V.Vector (Int, BS.ByteString) -> [ETag] -> [ETag]
+    fillOffsets :: Array (Int, BS.ByteString) -> [ETag] -> [ETag]
     fillOffsets linesWithOffsets = mapMaybe $ \tag -> do
       let TagLineOff lineNo _ = tagAddr tag
-      (offset, line) <- linesWithOffsets V.!? (lineNo - 1)
+      (offset, line) <- indexArrayMaybe linesWithOffsets (lineNo - 1)
       pure tag
         { tagAddr       = TagLineOff lineNo offset
         , tagDefinition =
           -- Prevent weird characters from ending up in the TAGS file.
           TagDefinition . T.takeWhile isPrint $ T.decodeUtf8Lenient line
         }
+
+indexArrayMaybe :: Array a -> Int -> Maybe a
+indexArrayMaybe arr i
+  | i >= 0 && i < sizeofArray arr = Just $ indexArray arr i
+  | otherwise                     = Nothing
 
 writeTags :: FilePath -> Tags -> IO ()
 writeTags tagsFile Tags{..} = withFile tagsFile WriteMode $ \h ->

@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                ghc-tags
-version:             1.11
+version:             1.11.1
 synopsis:            Utility for generating ctags and etags with GHC API.
 description:         Utility for generating etags (Emacs) and ctags (Vim and other
                      editors) with GHC API for efficient project navigation.
@@ -24,7 +24,6 @@ executable ghc-tags
   ghc-options:         -Wall -Wunused-packages -threaded -rtsopts
 
   build-depends:       base >=4.20 && <4.23
-                     , aeson >= 2.0.0.0
                      , async >= 2.2.5
                      , attoparsec
                      , bytestring
@@ -35,14 +34,14 @@ executable ghc-tags
                      , ghc >= 9.10 && < 9.15
                      , ghc-boot >= 9.10 && < 9.15
                      , ghc-paths
+                     , HsYAML >= 0.2.1
                      , stm
                      , optparse-applicative
+                     , primitive
                      , process
                      , temporary
                      , text
                      , time
-                     , vector
-                     , yaml
 
   hs-source-dirs:      src
 
