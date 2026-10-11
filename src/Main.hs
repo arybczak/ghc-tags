@@ -121,9 +121,10 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
     showIOError m = m `catch` \(e::IOError) -> do
       putError $ "Error: " ++ show e
 
-    -- Several threads report at once, so without the lock their messages mix.
+    -- Several threads report at once, and stderr is unbuffered, so without
+    -- the lock their messages mix character by character.
     putError :: String -> IO ()
-    putError msg = withMVar (wdOutputLock wd) $ \() -> putStrLn msg
+    putError msg = withMVar (wdOutputLock wd) $ \() -> hPutStrLn stderr msg
 
     -- Extract tags from a given file and update the TagMap.
     worker :: IO ()
@@ -344,11 +345,11 @@ readTags tt tagsFile = doesFileExist tagsFile >>= \case
         }
       -- reading failed
       Left err -> do
-        putStrLn $ "Error while reading " ++ tagsFile ++ ": " ++ show err
+        hPutStrLn stderr $ "Error while reading " ++ tagsFile ++ ": " ++ show err
         pure newDirtyTags
       -- parsing failed
       Right (Left err) -> do
-        putStrLn $ "Error while parsing " ++ tagsFile ++ ": " ++ show err
+        hPutStrLn stderr $ "Error while parsing " ++ tagsFile ++ ": " ++ show err
         pure newDirtyTags
   where
     newDirtyTags = DirtyTags { dtKind = tt
@@ -435,7 +436,7 @@ addExCommands file tags = do
   let path = T.unpack $ getTagFileName file
   tryIOError (BS.readFile path) >>= \case
     Left err -> do
-      putStrLn $ "Unexpected error: " ++ show err
+      hPutStrLn stderr $ "Unexpected error: " ++ show err
       pure Nothing
     Right content -> do
       let fileLines = arrayFromList $ BS.lines content
@@ -462,7 +463,7 @@ addFileOffsets file tags = do
       addOffset !off line = (off + BS.length line + 1, (off, line))
   tryIOError (BS.readFile path) >>= \case
     Left err -> do
-      putStrLn $ "Unexpected error: " ++ show err
+      hPutStrLn stderr $ "Unexpected error: " ++ show err
       pure Nothing
     Right content -> do
       let linesWithOffsets = arrayFromList

@@ -2,8 +2,7 @@
 #
 # Run ghc-tags on the sources of this repository in both formats and check the
 # result. ghc-tags exits with 0 even when it fails to parse a file, it only
-# reports the file: a parse error goes to stdout, an error of the external
-# preprocessor goes to stderr. A successful run prints nothing, so any output is
+# reports the file on stderr. A successful run prints nothing, so any output is
 # a failure.
 #
 # Usage: check-tags.sh [GHC_TAGS]
