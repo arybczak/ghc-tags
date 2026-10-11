@@ -103,7 +103,7 @@ instance Eq Header where
             && headerComment0 == headerComment1
         _ -> False
 
-deriving instance Show Header
+deriving stock instance Show Header
 
 -- | Enumeration of header type and values of their corresponding argument
 data HeaderType ty where
@@ -125,9 +125,9 @@ instance NFData (HeaderType ty) where
   rnf (PseudoTag t) = rnf t
   rnf ty = ty `seq` ()
 
-deriving instance Eq (HeaderType ty)
-deriving instance Ord (HeaderType ty)
-deriving instance Show (HeaderType ty)
+deriving stock instance Eq (HeaderType ty)
+deriving stock instance Ord (HeaderType ty)
+deriving stock instance Show (HeaderType ty)
 
 -- | Existential wrapper.
 data SomeHeaderType where

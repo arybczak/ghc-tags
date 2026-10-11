@@ -1,78 +1,96 @@
-cabal-version:       3.0
-name:                ghc-tags
-version:             1.11.1
-synopsis:            Utility for generating ctags and etags with GHC API.
-description:         Utility for generating etags (Emacs) and ctags (Vim and other
-                     editors) with GHC API for efficient project navigation.
-license:             MPL-2.0
-license-file:        LICENSE
-author:              Andrzej Rybczak
-maintainer:          andrzej@rybczak.net
-copyright:           Andrzej Rybczak
-category:            Development
-extra-doc-files:     CHANGELOG.md
-                     README.md
-homepage:            https://github.com/arybczak/ghc-tags
-bug-reports:         https://github.com/arybczak/ghc-tags/issues
-tested-with:         GHC ^>= { 9.10, 9.12, 9.14 }
+cabal-version:      3.8
+build-type:         Simple
+name:               ghc-tags
+version:            1.11.1
+license:            MPL-2.0
+license-file:       LICENSE
+category:           Development
+maintainer:         andrzej@rybczak.net
+author:             Andrzej Rybczak
+copyright:          Andrzej Rybczak
+synopsis:           Utility for generating ctags and etags with GHC API.
 
+description:
+  Utility for generating etags (Emacs) and ctags (Vim and other editors) with
+  GHC API for efficient project navigation.
+
+extra-doc-files:
+  CHANGELOG.md
+  README.md
+
+tested-with: GHC ^>= { 9.10, 9.12, 9.14 }
+
+homepage:    https://github.com/arybczak/ghc-tags
+bug-reports: https://github.com/arybczak/ghc-tags/issues
 source-repository head
-  type:     git
-  location: https://github.com/arybczak/ghc-tags
+    type:     git
+    location: https://github.com/arybczak/ghc-tags.git
+
+common language
+    ghc-options:        -Wall
+                        -Wunused-packages
+                        -Werror=missing-deriving-strategies
+                        -Werror=name-shadowing
+                        -Werror=prepositive-qualified-module
+
+    default-language:   GHC2021
+
+    default-extensions: DataKinds
+                        DerivingStrategies
+                        DerivingVia
+                        GADTs
+                        LambdaCase
+                        MultiWayIf
+                        OverloadedStrings
+                        PatternSynonyms
+                        RecordWildCards
+                        StrictData
+                        ViewPatterns
 
 executable ghc-tags
-  ghc-options:         -Wall -Wunused-packages -threaded -rtsopts
+    import:         language
 
-  build-depends:       base >=4.20 && <4.23
-                     , async >= 2.2.5
-                     , attoparsec
-                     , bytestring
-                     , containers
-                     , deepseq
-                     , directory
-                     , filepath
-                     , ghc >= 9.10 && < 9.15
-                     , ghc-boot >= 9.10 && < 9.15
-                     , ghc-paths
-                     , yamlet >= 1.0
-                     , stm
-                     , optparse-applicative
-                     , primitive
-                     , process
-                     , temporary
-                     , text
-                     , time
+    ghc-options:    -threaded -rtsopts
 
-  hs-source-dirs:      src
+    build-depends:    base >= 4.20 && < 4.23
+                    , async >= 2.2.5
+                    , attoparsec
+                    , bytestring
+                    , containers
+                    , deepseq
+                    , directory
+                    , filepath
+                    , ghc >= 9.10 && < 9.15
+                    , ghc-boot >= 9.10 && < 9.15
+                    , ghc-paths
+                    , optparse-applicative
+                    , primitive
+                    , process
+                    , stm
+                    , temporary
+                    , text
+                    , time
+                    , yamlet >= 1.0
 
-  main-is:             Main.hs
+    hs-source-dirs:  src
 
-  other-modules:       GhcTags
-                       GhcTags.Config.Args
-                       GhcTags.Config.Project
-                       GhcTags.Ghc
-                       GhcTags.GhcCompat
-                       GhcTags.Tag
-                       GhcTags.CTag
-                       GhcTags.CTag.Header
-                       GhcTags.CTag.Parser
-                       GhcTags.CTag.Formatter
-                       GhcTags.CTag.Utils
-                       GhcTags.ETag
-                       GhcTags.ETag.Parser
-                       GhcTags.ETag.Formatter
-                       GhcTags.Utils
-                       Paths_ghc_tags
+    main-is:         Main.hs
 
-  autogen-modules:     Paths_ghc_tags
+    other-modules:   GhcTags
+                     GhcTags.CTag
+                     GhcTags.CTag.Formatter
+                     GhcTags.CTag.Header
+                     GhcTags.CTag.Parser
+                     GhcTags.CTag.Utils
+                     GhcTags.Config.Args
+                     GhcTags.Config.Project
+                     GhcTags.ETag
+                     GhcTags.ETag.Formatter
+                     GhcTags.ETag.Parser
+                     GhcTags.Ghc
+                     GhcTags.GhcCompat
+                     GhcTags.Tag
+                     GhcTags.Utils
+                     Paths_ghc_tags
 
-  default-language:    GHC2021
-  default-extensions:  DataKinds
-                     , DerivingStrategies
-                     , DerivingVia
-                     , GADTs
-                     , LambdaCase
-                     , MultiWayIf
-                     , OverloadedStrings
-                     , RecordWildCards
-                     , StrictData
+    autogen-modules: Paths_ghc_tags

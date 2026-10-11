@@ -19,7 +19,7 @@ import Yamlet qualified as Y
 data ExtensionFlag
   = EnableExtension Extension
   | DisableExtension Extension
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 data ProjectConfig = ProjectConfig
   { pcSourcePaths :: [FilePath]

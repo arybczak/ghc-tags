@@ -59,7 +59,7 @@ import GhcTags.Ghc
 
 -- | Promoted data type used to disntinguish 'CTag's from 'ETag's.
 data TagType = CTag | ETag
-  deriving (Show)
+  deriving stock (Show)
 
 -- | Singletons for promoted types.
 data SingTagType (tt :: TagType) where
@@ -68,7 +68,7 @@ data SingTagType (tt :: TagType) where
 
 -- | 'ByteString' which encodes a tag name.
 newtype TagName = TagName {getTagName :: Text}
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 instance NFData TagName where
   rnf = rnf . getTagName
@@ -117,12 +117,12 @@ instance NFData (TagKind tt) where
 type CTagKind = TagKind 'CTag
 type ETagKind = TagKind 'ETag
 
-deriving instance Eq (TagKind tt)
-deriving instance Ord (TagKind tt)
-deriving instance Show (TagKind tt)
+deriving stock instance Eq (TagKind tt)
+deriving stock instance Ord (TagKind tt)
+deriving stock instance Show (TagKind tt)
 
 newtype ExCommand = ExCommand {getExCommand :: Text}
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 -- | Tag address, either from a parsed file or from Haskell's AST>
 data TagAddress (tt :: TagType) where
@@ -145,9 +145,9 @@ type CTagAddress = TagAddress 'CTag
 -- | 'ETag' addresses.
 type ETagAddress = TagAddress 'ETag
 
-deriving instance Eq (TagAddress tt)
-deriving instance Ord (TagAddress tt)
-deriving instance Show (TagAddress tt)
+deriving stock instance Eq (TagAddress tt)
+deriving stock instance Ord (TagAddress tt)
+deriving stock instance Show (TagAddress tt)
 
 -- | Emacs tags specific field.
 data TagDefinition (tt :: TagType) where
@@ -157,9 +157,9 @@ data TagDefinition (tt :: TagType) where
 instance NFData (TagDefinition tt) where
   rnf x = x `seq` ()
 
-deriving instance Show (TagDefinition tt)
-deriving instance Eq (TagDefinition tt)
-deriving instance Ord (TagDefinition tt)
+deriving stock instance Show (TagDefinition tt)
+deriving stock instance Eq (TagDefinition tt)
+deriving stock instance Ord (TagDefinition tt)
 
 -- | Unit of data associated with a tag.  Vim natively supports `file:` and
 -- `kind:` tags but it can display any other tags too.
@@ -167,7 +167,7 @@ data TagField = TagField
   { fieldName :: Text
   , fieldValue :: Text
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
 
 instance NFData TagField where
   rnf x = x `seq` ()
@@ -188,9 +188,9 @@ instance NFData (TagFields tt) where
   rnf NoTagFields = ()
   rnf (TagFields fs) = rnf fs
 
-deriving instance Show (TagFields tt)
-deriving instance Eq (TagFields tt)
-deriving instance Ord (TagFields tt)
+deriving stock instance Show (TagFields tt)
+deriving stock instance Eq (TagFields tt)
+deriving stock instance Ord (TagFields tt)
 instance Semigroup (TagFields tt) where
   NoTagFields <> NoTagFields = NoTagFields
   (TagFields a) <> (TagFields b) = TagFields (a ++ b)
@@ -217,7 +217,7 @@ data Tag (tt :: TagType) = Tag
   , tagFields :: TagFields tt
   -- ^ ctags specific field
   }
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord)
 
 instance NFData (Tag tt) where
   rnf Tag {..} =

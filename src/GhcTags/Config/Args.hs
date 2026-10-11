@@ -19,7 +19,7 @@ defaultOutputFile ETag = "TAGS"
 data SourcePaths
   = SourceArgs [FilePath]
   | ConfigFile (Maybe FilePath)
-  deriving (Show)
+  deriving stock (Show)
 
 data Args = Args
   { aTagType :: TagType
@@ -28,7 +28,7 @@ data Args = Args
   , aSourcePaths :: SourcePaths
   , aExModeSearch :: Bool
   }
-  deriving (Show)
+  deriving stock (Show)
 
 argsParser :: Int -> Parser Args
 argsParser defaultThreads = do
