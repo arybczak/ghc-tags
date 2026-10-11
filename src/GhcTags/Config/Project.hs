@@ -52,7 +52,7 @@ defaultProjectConfig = ProjectConfig
                      , "dist-newstyle"
                      ]
   , pcLanguage     = Haskell2010
-  , pcExtensions   = map EnableExtension
+  , pcExtensions   = map EnableExtension $
                      [ BangPatterns
                      , BinaryLiterals
                      , BlockArguments
@@ -64,10 +64,9 @@ defaultProjectConfig = ProjectConfig
                      , LambdaCase
                      , LinearTypes
                      , MagicHash
-#if __GLASGOW_HASKELL__ >= 912
-                     , MultilineStrings
-#endif
-                     , MultiWayIf
+                     ]
+                     ++ multilineStrings ++
+                     [ MultiWayIf
                      , NumericUnderscores
                      , OverloadedLabels
                      , PatternSynonyms
@@ -80,6 +79,14 @@ defaultProjectConfig = ProjectConfig
   , pcCppIncludes = []
   , pcCppOptions  = []
   }
+
+-- At the top level, because fourmolu cannot format CPP inside a where clause.
+multilineStrings :: [Extension]
+#if __GLASGOW_HASKELL__ >= 912
+multilineStrings = [MultilineStrings]
+#else
+multilineStrings = []
+#endif
 
 -- | Configuration files probed when '--config' is not given, in the order of
 -- precedence.

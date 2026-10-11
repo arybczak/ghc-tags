@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- | Generate tags from @'HsModule' 'GhcPs'@ representation.
 --
 module GhcTags.Ghc
@@ -26,6 +25,8 @@ import GHC.Types.SourceText
 import GHC.Types.SrcLoc
 import Language.Haskell.Syntax.Module.Name
 import qualified Data.Foldable as F
+
+import GhcTags.GhcCompat
 
 -- | Kind of the term.
 --
@@ -407,16 +408,8 @@ hsDeclsToGhcTags mies = foldr go []
       -> HsConDeclGADTDetails GhcPs
       -> [GhcTag]
     mkHsConDeclGADTDetails decLoc tyName (RecConGADT _ (L _ fields)) =
-        foldr f [] fields
+        foldr (\field ts -> ts ++ map g (recFieldNames field)) [] fields
       where
-#if __GLASGOW_HASKELL__ >= 914
-        f :: LHsConDeclRecField GhcPs -> [GhcTag] -> [GhcTag]
-        f (L _ HsConDeclRecField { cdrf_names }) ts = ts ++ map g cdrf_names
-#else
-        f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
-        f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
-#endif
-
         g :: LFieldOcc GhcPs -> GhcTag
         g (L _ FieldOcc { foLabel }) =
             mkGhcTagForMember decLoc foLabel tyName GtkRecordField
@@ -428,16 +421,8 @@ hsDeclsToGhcTags mies = foldr go []
       -> HsConDeclH98Details GhcPs
       -> [GhcTag]
     mkHsConDeclH98Details decLoc tyName (RecCon (L _ fields)) =
-        foldr f [] fields
+        foldr (\field ts -> ts ++ map g (recFieldNames field)) [] fields
       where
-#if __GLASGOW_HASKELL__ >= 914
-        f :: LHsConDeclRecField GhcPs -> [GhcTag] -> [GhcTag]
-        f (L _ HsConDeclRecField { cdrf_names }) ts = ts ++ map g cdrf_names
-#else
-        f :: LConDeclField GhcPs -> [GhcTag] -> [GhcTag]
-        f (L _ ConDeclField { cd_fld_names }) ts = ts ++ map g cd_fld_names
-#endif
-
         g :: LFieldOcc GhcPs -> GhcTag
         g (L _ FieldOcc { foLabel }) =
             mkGhcTagForMember decLoc foLabel tyName GtkRecordField
@@ -507,9 +492,7 @@ hsDeclsToGhcTags mies = foldr go []
     mkSigTags _ InlineSig {}           = []
     -- SPECIALISE pragmas
     mkSigTags _ SpecSig {}             = []
-#if __GLASGOW_HASKELL__ >= 914
     mkSigTags _ SpecSigE {}            = []
-#endif
     mkSigTags _ SpecInstSig {}         = []
     -- MINIMAL pragma
     mkSigTags _ MinimalSig {}          = []

@@ -1,8 +1,12 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 module GhcTags.GhcCompat
   ( runGhc
   , parseModule
+  , recFieldNames
+  , pattern SpecSigE
   ) where
 
 import Data.IORef
@@ -52,8 +56,26 @@ runGhc m = do
   ref <- newIORef env
   unGhc (GHC.withCleanupSession m) (Session ref)
 
+#if __GLASGOW_HASKELL__ >= 914
+recFieldNames :: LHsConDeclRecField GhcPs -> [LFieldOcc GhcPs]
+recFieldNames (L _ HsConDeclRecField { cdrf_names }) = cdrf_names
+#else
+recFieldNames :: LConDeclField GhcPs -> [LFieldOcc GhcPs]
+recFieldNames (L _ ConDeclField { cd_fld_names }) = cd_fld_names
+#endif
+
+#if __GLASGOW_HASKELL__ < 914
+-- | A stand-in for the constructor that GHC 9.14 added. It never matches.
+pattern SpecSigE :: () -> Sig GhcPs
+pattern SpecSigE x <- (const Nothing -> Just x)
+#endif
+
 ----------------------------------------
 -- Internal
+
+-- Fourmolu formats the code between CPP directives separately, so it cannot
+-- format the record below with a conditional field.
+{- FOURMOLU_DISABLE -}
 
 -- | Stripped version of 'GHC.Settings.IO.initSettings' that ignores the
 -- @platformConstants@ file as it's irrelevant for parsing.
@@ -226,6 +248,8 @@ compatInitSettings top_dir = do
 
     , sRawSettings    = settingsList
     }
+
+{- FOURMOLU_ENABLE -}
 
 -- Stripped version of 'GHC.Settings.Platform.getTargetPlatform'. Arch info is
 -- needed for CPP defines, the rest is irrelevant.
