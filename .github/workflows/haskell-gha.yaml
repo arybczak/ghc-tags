@@ -131,7 +131,7 @@ jobs:
         cabal build all
 
     - name: Generate tags for this repository
-      run: ./scripts/check-tags.sh
+      run: ./scripts/check-tags.sh "$(cd "$RUNNER_TEMP"/haskell-gha && cabal list-bin ghc-tags)"
 
     - name: Check the packages
       working-directory: ${{ runner.temp }}/haskell-gha
