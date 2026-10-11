@@ -1,4 +1,4 @@
-# ghc-tags-1.11.1 (????-??-??)
+# ghc-tags-1.12 (2026-10-11)
 * If the configuration file contains an error, show the line, the column and
   an excerpt of the file. A value of the wrong kind is now reported in plain
   words, e.g. `expected a list, but got an integer`.
