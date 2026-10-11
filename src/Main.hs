@@ -62,9 +62,10 @@ data Updated a = Updated Bool a
 data HsFileType = HsFile | HsBootFile | LHsFile | AlexFile | HscFile
 
 data WorkerData = WorkerData
-  { wdTags   :: MVar DirtyTags
-  , wdTimes  :: MVar DirtyModTimes
-  , wdQueue  :: TBQueue (Maybe (FilePath, HsFileType, UTCTime))
+  { wdTags       :: MVar DirtyTags
+  , wdTimes      :: MVar DirtyModTimes
+  , wdQueue      :: TBQueue (Maybe (FilePath, HsFileType, UTCTime))
+  , wdOutputLock :: MVar ()
   }
 
 generateTagsForProject :: Int -> WorkerData -> ProjectConfig -> IO ()
@@ -118,12 +119,19 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
       replicateM_ threads $ writeTBQueue (wdQueue wd) Nothing
 
     showIOError m = m `catch` \(e::IOError) -> do
-      putStrLn $ "Error: " ++ show e
+      putError $ "Error: " ++ show e
+
+    -- Several threads report at once, so without the lock their messages mix.
+    putError :: String -> IO ()
+    putError msg = withMVar (wdOutputLock wd) $ \() -> putStrLn msg
 
     -- Extract tags from a given file and update the TagMap.
     worker :: IO ()
     worker = runGhc $ do
       void $ setSessionDynFlags . adjustDynFlags pc =<< getSessionDynFlags
+      -- GHC prints the errors of the C preprocessor itself.
+      pushLogHookM $ \logAction flags msgClass srcSpan msg ->
+        withMVar (wdOutputLock wd) $ \() -> logAction flags msgClass srcSpan msg
       env <- getSession
       liftIO . fix $ \loop -> atomically (readTBQueue $ wdQueue wd) >>= \case
         Nothing                    -> pure ()
@@ -156,11 +164,11 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
                       pure $! updateTimesWith path mtime times
           where
             showErr :: GHC.GhcException -> IO ()
-            showErr = putStrLn . show
+            showErr = putError . show
 
             report :: Diagnostic e => DynFlags -> Bag (MsgEnvelope e) -> IO ()
             report flags msgs =
-              sequence_ [ putStrLn $ showSDoc flags msg
+              sequence_ [ putError $ showSDoc flags msg
                         | msg <- pprMsgEnvelopeBagWithLocDefault msgs
                         ]
 
@@ -220,11 +228,12 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
                 ([file, "-o", tmpFile] ++ args) ""
               case ec of
                 ExitSuccess      -> k tmpFile
-                ExitFailure code -> do
-                  putStrLn $ "Preprocessing " ++ file ++ " with " ++ prog
-                          ++ " failed with exit code " ++ show code
-                  unless (null out) . putStrLn $ "* STDOUT: " ++ out
-                  unless (null err) . putStrLn $ "* STDERR: " ++ err
+                ExitFailure code -> putError . intercalate "\n" $
+                  [ "Preprocessing " ++ file ++ " with " ++ prog
+                    ++ " failed with exit code " ++ show code
+                  ]
+                  ++ [ "* STDOUT: " ++ out | not (null out) ]
+                  ++ [ "* STDERR: " ++ err | not (null err) ]
 
 main :: IO ()
 main = do
@@ -263,9 +272,10 @@ main = do
       mtimes <- if Map.null dtTags
         then pure Map.empty
         else readTimes (timesFile args)
-      wdTags  <- newMVar tags
-      wdTimes <- newMVar mtimes
-      wdQueue <- newTBQueueIO (fromIntegral threads)
+      wdTags       <- newMVar tags
+      wdTimes      <- newMVar mtimes
+      wdQueue      <- newTBQueueIO (fromIntegral threads)
+      wdOutputLock <- newMVar ()
       pure WorkerData{..}
 
 ----------------------------------------
