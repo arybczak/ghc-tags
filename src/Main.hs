@@ -19,18 +19,18 @@ import GHC (GhcException, setSessionDynFlags)
 import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
 import GHC.Data.StringBuffer
+import GHC.Driver.Config.Diagnostic
 import GHC.Driver.Env.Types
+import GHC.Driver.Errors
 import GHC.Driver.Errors.Types
 import GHC.Driver.Monad
 import GHC.Driver.Pipeline
-import GHC.Driver.Ppr
 import GHC.Driver.Session
 import GHC.Hs
 import GHC.Parser.Errors.Types
 import GHC.Parser.Lexer
 import GHC.Types.Error
 import GHC.Types.SrcLoc
-import GHC.Utils.Error
 import System.Directory
 import System.Environment
 import System.Exit
@@ -152,7 +152,7 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
         processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
           handle showErr $ preprocessFile hsFile >>= \case
             Left errs -> do
-              report (hsc_dflags env) (getMessages errs)
+              report (hsc_dflags env) errs
               markFailed
             Right (flags, file) -> do
               --when (file /= rawFile) $ do
@@ -161,13 +161,13 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
               case parseModule file flags buffer of
                 PFailed pstate -> do
                   let (wrns, errs) = getPsMessages pstate
-                  report flags (getMessages wrns)
-                  report flags (getMessages errs)
+                  report flags wrns
+                  report flags errs
                   markFailed
                 POk pstate hsModule -> do
                   let (wrns, errs) = getPsMessages pstate
-                  report flags (getMessages wrns)
-                  report flags (getMessages errs)
+                  report flags wrns
+                  report flags errs
                   if isEmptyBag $ getMessages errs
                     then do
                       modifyMVar_ (wdTags wd) $ \tags -> do
@@ -180,11 +180,9 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
             showErr :: GHC.GhcException -> IO ()
             showErr = putError . show
 
-            report :: Diagnostic e => DynFlags -> Bag (MsgEnvelope e) -> IO ()
-            report flags msgs =
-              sequence_ [ putMessage $ showSDoc flags msg
-                        | msg <- pprMsgEnvelopeBagWithLocDefault msgs
-                        ]
+            report :: forall e. Diagnostic e => DynFlags -> Messages e -> IO ()
+            report flags = printMessages (hsc_logger env)
+              (defaultDiagnosticOpts @e) (initDiagOpts flags)
 
             -- GHC rejects a file when an OPTIONS_GHC pragma contains a flag
             -- that the linked ghc library doesn't know, e.g. when the source

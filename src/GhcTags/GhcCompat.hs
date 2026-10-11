@@ -20,8 +20,6 @@ import GHC.Parser.Lexer
 import GHC.Paths
 import GHC.SysTools
 import GHC.Types.SrcLoc
-import GHC.Utils.TmpFs
-import System.Directory
 import qualified GHC
 import qualified GHC.Parser as Parser
 
@@ -37,9 +35,8 @@ parseModule filename flags buffer = unP Parser.parseModule parseState
 
 runGhc :: Ghc a -> IO a
 runGhc m = do
-  ghcSettings <- initSysTools libdir
-  tmpdir <- getTemporaryDirectory
-  env <- newHscEnv libdir $ (defaultDynFlags ghcSettings) { tmpDir = TempDir tmpdir }
+  dflags <- initDynFlags . defaultDynFlags =<< initSysTools libdir
+  env <- newHscEnv libdir dflags
   ref <- newIORef env
   unGhc (GHC.withCleanupSession m) (Session ref)
 
