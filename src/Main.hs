@@ -9,6 +9,7 @@ import Control.Monad
 import Data.Bifunctor
 import Data.Char
 import Data.Function
+import Data.IORef
 import Data.Functor
 import Data.List
 import Data.Maybe (mapMaybe)
@@ -66,6 +67,7 @@ data WorkerData = WorkerData
   , wdTimes      :: MVar DirtyModTimes
   , wdQueue      :: TBQueue (Maybe (FilePath, HsFileType, UTCTime))
   , wdOutputLock :: MVar ()
+  , wdFailed     :: IORef Bool
   }
 
 generateTagsForProject :: Int -> WorkerData -> ProjectConfig -> IO ()
@@ -123,8 +125,14 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
 
     -- Several threads report at once, and stderr is unbuffered, so without
     -- the lock their messages mix character by character.
+    putMessage :: String -> IO ()
+    putMessage msg = withMVar (wdOutputLock wd) $ \() -> hPutStrLn stderr msg
+
     putError :: String -> IO ()
-    putError msg = withMVar (wdOutputLock wd) $ \() -> hPutStrLn stderr msg
+    putError msg = markFailed >> putMessage msg
+
+    markFailed :: IO ()
+    markFailed = atomicWriteIORef (wdFailed wd) True
 
     -- Extract tags from a given file and update the TagMap.
     worker :: IO ()
@@ -143,7 +151,9 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
         processFile :: HscEnv -> FilePath -> HsFileType -> UTCTime -> IO ()
         processFile env rawFile hsType mtime = withHsFile rawFile hsType $ \hsFile -> do
           handle showErr $ preprocessFile hsFile >>= \case
-            Left errs -> report (hsc_dflags env) (getMessages errs)
+            Left errs -> do
+              report (hsc_dflags env) (getMessages errs)
+              markFailed
             Right (flags, file) -> do
               --when (file /= rawFile) $ do
               --  putStrLn $ "Processing " ++ file ++ " (" ++ rawFile ++ ")"
@@ -153,23 +163,26 @@ generateTagsForProject threads wd pc = runConcurrently . F.fold
                   let (wrns, errs) = getPsMessages pstate
                   report flags (getMessages wrns)
                   report flags (getMessages errs)
+                  markFailed
                 POk pstate hsModule -> do
                   let (wrns, errs) = getPsMessages pstate
                   report flags (getMessages wrns)
                   report flags (getMessages errs)
-                  when (isEmptyBag $ getMessages errs) $ do
-                    modifyMVar_ (wdTags wd) $ \tags -> do
-                      pure $! updateTagsWith flags hsModule tags
-                    modifyMVar_ (wdTimes wd) $ \times -> do
-                      let path = TagFileName $ T.pack rawFile
-                      pure $! updateTimesWith path mtime times
+                  if isEmptyBag $ getMessages errs
+                    then do
+                      modifyMVar_ (wdTags wd) $ \tags -> do
+                        pure $! updateTagsWith flags hsModule tags
+                      modifyMVar_ (wdTimes wd) $ \times -> do
+                        let path = TagFileName $ T.pack rawFile
+                        pure $! updateTimesWith path mtime times
+                    else markFailed
           where
             showErr :: GHC.GhcException -> IO ()
             showErr = putError . show
 
             report :: Diagnostic e => DynFlags -> Bag (MsgEnvelope e) -> IO ()
             report flags msgs =
-              sequence_ [ putError $ showSDoc flags msg
+              sequence_ [ putMessage $ showSDoc flags msg
                         | msg <- pprMsgEnvelopeBagWithLocDefault msgs
                         ]
 
@@ -261,6 +274,9 @@ main = do
     cleanTagMap <- withMVar (wdTags wd) (cleanupTags args)
     writeTags (aTagFile args) cleanTagMap
     withMVar (wdTimes wd) $ Y.encodeFile (timesFile args) <=< cleanupTimes cleanTagMap
+
+    failed <- readIORef (wdFailed wd)
+    when failed exitFailure
   where
     timesFile args = aTagFile args <.> "mtime"
 
@@ -277,6 +293,7 @@ main = do
       wdTimes      <- newMVar mtimes
       wdQueue      <- newTBQueueIO (fromIntegral threads)
       wdOutputLock <- newMVar ()
+      wdFailed     <- newIORef False
       pure WorkerData{..}
 
 ----------------------------------------

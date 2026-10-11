@@ -5,6 +5,8 @@
 * Depend on fewer packages. A build from source no longer compiles the
   bundled C library of libyaml.
 * Print errors and warnings to stderr instead of stdout.
+* Exit with code 1 if a source file fails to parse or preprocess. The tags of
+  the other files are still written. Earlier versions exited with 0.
 * Fix garbled error messages with more than one thread, e.g. errors of the C
   preprocessor. Messages from different files no longer mix.
 
