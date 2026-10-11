@@ -28,6 +28,19 @@ defaults:
     shell: bash
 
 jobs:
+  fourmolu:
+    name: Fourmolu
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
+
+    - uses: haskell-actions/run-fourmolu@v13
+      with:
+        version: '0.21.0.0'
+
   build:
     name: GHC ${{ matrix.ghc }}
     runs-on: ubuntu-26.04

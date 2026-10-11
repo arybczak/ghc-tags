@@ -1,5 +1,8 @@
 branches:
 - master
+fourmolu:
+  enabled: true
+  version: 0.21.0.0
 hooks:
   after-build:
     - name: Generate tags for this repository
