@@ -9,11 +9,11 @@ import Control.Monad
 import Data.Bifunctor
 import Data.Char
 import Data.Function
+import Data.Functor
 import Data.List
 import Data.Maybe (mapMaybe)
 import Data.Primitive.Array
 import Data.Time
-import Data.Time.Format.ISO8601
 import GHC (GhcException, setSessionDynFlags)
 import GHC.Conc (getNumProcessors)
 import GHC.Data.Bag
@@ -45,7 +45,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as T
+import qualified Yamlet as Y
 
 import GhcTags
 import GhcTags.Config.Args
@@ -250,7 +250,7 @@ main = do
 
     cleanTagMap <- withMVar (wdTags wd) (cleanupTags args)
     writeTags (aTagFile args) cleanTagMap
-    withMVar (wdTimes wd) $ writeTimes (timesFile args) <=< cleanupTimes cleanTagMap
+    withMVar (wdTimes wd) $ Y.encodeFile (timesFile args) <=< cleanupTimes cleanTagMap
   where
     timesFile args = aTagFile args <.> "mtime"
 
@@ -275,21 +275,9 @@ type ModTimes      = Map.Map TagFileName UTCTime
 
 -- | Read the file with mtimes of previously processed source files.
 readTimes :: FilePath -> IO DirtyModTimes
-readTimes timesFile = doesFileExist timesFile >>= \case
-  False -> pure Map.empty
-  True  -> tryIOError (T.readFile timesFile) >>= \case
-    Right content -> pure . parse Map.empty $ T.lines content
-    Left err -> do
-      putStrLn $ "Error while reading " ++ timesFile ++ ": " ++ show err
-      pure Map.empty
-  where
-    parse :: DirtyModTimes -> [T.Text] -> DirtyModTimes
-    parse !acc (path : mtime : rest) =
-      case iso8601ParseM (T.unpack mtime) of
-        Just time -> let checkedTime = Updated False time
-                     in parse (Map.insert (TagFileName path) checkedTime acc) rest
-        Nothing   -> parse acc rest
-    parse !acc _ = acc
+readTimes timesFile = tryIOError (Y.decodeFile @ModTimes timesFile) <&> \case
+  Right (Right times) -> Updated False <$> times
+  _ -> Map.empty
 
 -- | Update an mtime of a source file with a new value.
 updateTimesWith :: TagFileName -> UTCTime -> DirtyModTimes -> DirtyModTimes
@@ -305,13 +293,6 @@ cleanupTimes Tags{..} = Map.traverseMaybeWithKey $ \file -> \case
         doesFileExist path >>= \case
           True  -> pure $ Just time
           False -> pure Nothing
-
--- | Update the file with mtimes with new values.
-writeTimes :: FilePath -> ModTimes -> IO ()
-writeTimes timesFile times = withFile timesFile WriteMode $ \h -> do
-  forM_ (Map.toList times) $ \(path, mtime) -> do
-    T.hPutStrLn h $ getTagFileName path
-    hPutStrLn h $ iso8601Show mtime
 
 ----------------------------------------
 

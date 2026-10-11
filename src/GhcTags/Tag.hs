@@ -35,6 +35,7 @@ import           Data.Map.Strict (Map)
 import           Data.Text   (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Yamlet as Y
 
 -- GHC imports
 import           GHC.Driver.Session (DynFlags, initSDocContext)
@@ -79,7 +80,8 @@ instance NFData TagName where
 -- | 'ByteString' which encodes a tag file name.
 --
 newtype TagFileName = TagFileName { getTagFileName :: Text }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Y.FromYaml, Y.ToYaml)
 
 instance NFData TagFileName where
   rnf = rnf . getTagFileName

@@ -1,5 +1,3 @@
-{-# LANGUAGE GADTs #-}
-
 module GhcTags.CTag.Utils
   ( tagKindToChar
   , charToTagKind
