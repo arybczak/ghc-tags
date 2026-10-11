@@ -3,6 +3,5 @@ module GhcTags
   , module GhcTags.Tag
   ) where
 
-
 import GhcTags.Ghc
 import GhcTags.Tag

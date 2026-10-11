@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+
 module GhcTags.GhcCompat
   ( runGhc
   , parseModule
@@ -9,6 +10,7 @@ module GhcTags.GhcCompat
   ) where
 
 import Data.IORef
+import GHC qualified
 import GHC.Data.FastString
 import GHC.Data.StringBuffer
 import GHC.Driver.Config.Parser
@@ -16,12 +18,11 @@ import GHC.Driver.Main
 import GHC.Driver.Monad
 import GHC.Driver.Session
 import GHC.Hs
+import GHC.Parser qualified as Parser
 import GHC.Parser.Lexer
 import GHC.Paths
 import GHC.SysTools
 import GHC.Types.SrcLoc
-import qualified GHC
-import qualified GHC.Parser as Parser
 
 parseModule
   :: FilePath

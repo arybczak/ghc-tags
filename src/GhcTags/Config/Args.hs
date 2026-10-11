@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+
 module GhcTags.Config.Args where
 
 import Control.Monad
@@ -18,60 +19,77 @@ defaultOutputFile ETag = "TAGS"
 data SourcePaths
   = SourceArgs [FilePath]
   | ConfigFile (Maybe FilePath)
-  deriving Show
+  deriving (Show)
 
 data Args = Args
-  { aTagType      :: TagType
-  , aTagFile      :: FilePath
-  , aThreads      :: Int
-  , aSourcePaths  :: SourcePaths
+  { aTagType :: TagType
+  , aTagFile :: FilePath
+  , aThreads :: Int
+  , aSourcePaths :: SourcePaths
   , aExModeSearch :: Bool
-  } deriving Show
+  }
+  deriving (Show)
 
 argsParser :: Int -> Parser Args
 argsParser defaultThreads = do
-  aTagType      <- ctags <|> etags
-  aTagFile0     <- tagFile
-  aThreads      <- threads
-  aSourcePaths  <- (SourceArgs <$> sourcePaths) <|> (ConfigFile <$> configFile)
+  aTagType <- ctags <|> etags
+  aTagFile0 <- tagFile
+  aThreads <- threads
+  aSourcePaths <- (SourceArgs <$> sourcePaths) <|> (ConfigFile <$> configFile)
   aExModeSearch <- exModeSearch
-  pure $ Args { aTagFile = if null aTagFile0
-                           then defaultOutputFile aTagType
-                           else aTagFile0
-              , ..
-              }
+  pure $
+    Args
+      { aTagFile =
+          if null aTagFile0
+            then defaultOutputFile aTagType
+            else aTagFile0
+      , ..
+      }
   where
     ctags :: Parser TagType
-    ctags = flag' CTag $ long "ctags"
-                      <> short 'c'
-                      <> help "Generate ctags"
+    ctags =
+      flag' CTag $
+        long "ctags"
+          <> short 'c'
+          <> help "Generate ctags"
 
     etags :: Parser TagType
-    etags = flag' ETag $ long "etags"
-                      <> short 'e'
-                      <> help "Generate etags"
+    etags =
+      flag' ETag $
+        long "etags"
+          <> short 'e'
+          <> help "Generate etags"
 
     tagFile :: Parser FilePath
-    tagFile = strOption $ short 'f'
-                       <> short 'o'
-                       <> metavar "FILE"
-                       <> help "Output file"
-                       <> value ""
-                       <> showDefaultWith (const "TAGS (etags) or tags (ctags)")
+    tagFile =
+      strOption $
+        short 'f'
+          <> short 'o'
+          <> metavar "FILE"
+          <> help "Output file"
+          <> value ""
+          <> showDefaultWith (const "TAGS (etags) or tags (ctags)")
 
     configFile :: Parser (Maybe FilePath)
-    configFile = optional . strOption $ long "config"
-                          <> metavar "FILE"
-                          <> help ("Configuration file (default: "
-                                   ++ intercalate ", then " defaultConfigFiles ++ ")")
+    configFile =
+      optional . strOption $
+        long "config"
+          <> metavar "FILE"
+          <> help
+            ( "Configuration file (default: "
+                ++ intercalate ", then " defaultConfigFiles
+                ++ ")"
+            )
 
     threads :: Parser Int
-    threads = option positive $ long "threads"
-                             <> short 'j'
-                             <> metavar "NUMBER"
-                             <> value defaultThreads
-                             <> showDefault
-                             <> help "Number of threads to use"
+    threads =
+      option positive $
+        long "threads"
+          <> short 'j'
+          <> metavar "NUMBER"
+          <> value defaultThreads
+          <> showDefault
+          <> help "Number of threads to use"
       where
         -- Zero deadlocks the queue and 'setNumCapabilities' rejects anything
         -- below one, so stop such a value here with a readable message.
@@ -85,20 +103,25 @@ argsParser defaultThreads = do
     sourcePaths = some . argument str $ metavar "<source paths...>"
 
     exModeSearch :: Parser Bool
-    exModeSearch = switch $ long "ex-mode-search"
-                         <> help "Use Ex mode commands instead of line numbers (ctags)"
+    exModeSearch =
+      switch $
+        long "ex-mode-search"
+          <> help "Use Ex mode commands instead of line numbers (ctags)"
 
 parseArgs :: Int -> [String] -> IO Args
 parseArgs defaultThreads = handleParseResult . execParserPure defaultPrefs opts
   where
-    opts = info
-      (argsParser defaultThreads <**> defaultConfigFlag <**> versionFlag <**> helper)
-      fullDesc
+    opts =
+      info
+        (argsParser defaultThreads <**> defaultConfigFlag <**> versionFlag <**> helper)
+        fullDesc
 
-    defaultConfigFlag = infoOption (ppProjectConfig defaultProjectConfig)
-       $ long "default"
-      <> help "Show a default configuration file"
+    defaultConfigFlag =
+      infoOption (ppProjectConfig defaultProjectConfig) $
+        long "default"
+          <> help "Show a default configuration file"
 
-    versionFlag = infoOption (showVersion version)
-       $ long "version"
-      <> help "Show version"
+    versionFlag =
+      infoOption (showVersion version) $
+        long "version"
+          <> help "Show version"
