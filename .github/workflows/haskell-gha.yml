@@ -120,7 +120,13 @@ jobs:
     - name: Check the packages
       working-directory: ${{ runner.temp }}/haskell-gha
       run: |
-        cabal check
+        failed=0
+        check() {
+          echo "Checking the package $1"
+          (cd "$2" && cabal check) || { echo "::error::cabal check failed for the package $1"; failed=1; }
+        }
+        check ghc-tags .
+        exit "$failed"
 
     - name: Build the documentation
       working-directory: ${{ runner.temp }}/haskell-gha
